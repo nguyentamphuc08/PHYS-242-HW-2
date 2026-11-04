@@ -1,0 +1,7 @@
+# Packages for PHYS 242 Assignment 2 (taken from "Assignment 2 Tutorial.ipynb")
+# Install into your .venv with:  python -m pip install -r requirements.txt
+numpy
+matplotlib     # plots and animation (FuncAnimation, PillowWriter)
+numba          # @njit to speed up the propagator matrix and time stepping
+pillow         # writes the .gif animation
+ipykernel      # lets VS Code run this .venv as a Jupyter kernel
