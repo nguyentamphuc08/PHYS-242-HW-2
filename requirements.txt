@@ -1,0 +1,8 @@
+# Packages for PHYS 242 Assignment 2
+# Install into your .venv with:  python -m pip install -r requirements.txt
+numpy
+scipy          # Problem B: sparse Hamiltonian + eigsh (shift-invert), as in the Lecture 11 demo
+matplotlib     # all plots (and the optional animation)
+numba          # @njit to speed up the propagator matrix and time stepping (A, D)
+pillow         # only needed for the optional .gif animation
+ipykernel      # lets VS Code run this .venv as a Jupyter kernel
