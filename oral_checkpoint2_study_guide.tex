@@ -5,6 +5,9 @@
 \usepackage{enumitem}
 \usepackage[most]{tcolorbox}
 \usepackage{xcolor}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta}
 \usepackage[hidelinks]{hyperref}
 
 \setlist{nosep,leftmargin=*}
@@ -14,153 +17,570 @@
 
 \newtcolorbox{keybox}[1]{colback=blue!4,colframe=blue!45!black,fonttitle=\bfseries,title={#1},boxrule=0.6pt,left=4pt,right=4pt,top=2pt,bottom=2pt}
 \newtcolorbox{trapbox}[1]{colback=red!4,colframe=red!55!black,fonttitle=\bfseries,title={#1},boxrule=0.6pt,left=4pt,right=4pt,top=2pt,bottom=2pt}
+\newtcolorbox{resbox}[1]{colback=green!4,colframe=green!35!black,fonttitle=\bfseries,title={#1},boxrule=0.6pt,left=4pt,right=4pt,top=2pt,bottom=2pt}
 \newcommand{\code}[1]{\texttt{#1}}
 \newcommand{\q}[1]{\textbf{Q:} \emph{#1}\\[1pt]}
 \newcommand{\ans}{\textbf{A:} }
 
-\title{\vspace{-1.5em}PHYS 142/242 --- Oral Checkpoint 2 Study Guide\\[2pt]\large Assignment 2: Tunneling in the double well ($\alpha=0.3282$)}
+\lstset{language=Python,basicstyle=\ttfamily\scriptsize,keywordstyle=\color{blue!60!black}\bfseries,
+  commentstyle=\color{green!40!black},stringstyle=\color{red!50!black},frame=single,rulecolor=\color{gray!60},
+  backgroundcolor=\color{gray!5},breaklines=true,columns=fullflexible,showstringspaces=false,
+  numbers=left,numberstyle=\tiny\color{gray},xleftmargin=1.5em,framexleftmargin=1.5em,aboveskip=4pt,belowskip=4pt}
+
+\title{\vspace{-1.5em}PHYS 142/242 --- Assignment 2 \& Oral Checkpoint 2 Study Guide\\[2pt]\large Tunneling in the double well ($\alpha=0.3282$)}
 \date{}
 
 \begin{document}
 \maketitle
-\vspace{-3em}
+\vspace{-3.5em}
+\tableofcontents
+
+% #####################################################################
+\part*{Part I --- Understanding the homework}
+\addcontentsline{toc}{part}{Part I --- Understanding the homework}
 
 % =====================================================================
-\section*{0. Format and how to score 3/3}
+\section{The big picture}
+A particle of mass $m=1$ ($\hbar=1$) lives in the symmetric double well
+\[
+V(x)=\alpha x^4-2x^2+\frac1\alpha ,\qquad \alpha=0.3282 .
+\]
+It starts in the right well with energy $E\approx1.3$, below the barrier $V(0)=1/\alpha\approx3.05$. Classically it is trapped; quantum mechanically it \emph{tunnels} to the left well and back. The four problems attack this from different sides:
+
+\begin{center}
+\begin{tikzpicture}[node distance=6mm and 10mm, box/.style={draw,rounded corners,fill=blue!5,align=center,font=\small,minimum height=9mm}, ar/.style={-{Latex[length=2mm]},thick}]
+\node[box] (S) {\textbf{Setup}\\ $V$, grid, $\psi_\pm$};
+\node[box,right=of S,yshift=9mm] (A) {\textbf{A} path integral\\ evolve $\psi_+$, measure $t_\text{tunnel}$};
+\node[box,right=of S,yshift=-9mm] (B) {\textbf{B} eigenproblem\\ $E_0,E_1,\phi_0,\phi_1$ from $H$};
+\node[box,right=of B,yshift=-9mm] (C) {\textbf{C} harmonic guess\\ $E_S,E_A$ vs.\ $E_0,E_1$};
+\node[box,right=of B,yshift=9mm] (D) {\textbf{D} two methods\\ exact vs.\ path integral};
+\node[box,right=of D,yshift=9mm] (A2) {\textbf{A(ii)}\\ read A using B, D};
+\draw[ar] (S) -- (A); \draw[ar] (S) -- (B); \draw[ar] (B) -- (C); \draw[ar] (B) -- (D);
+\draw[ar] (A) -- (D); \draw[ar] (A) -- (A2); \draw[ar] (D) -- (A2);
+\end{tikzpicture}
+\end{center}
+
+\begin{itemize}
+\item \textbf{A} evolves the wave function in time with the short-time propagator (no eigenstates needed) and measures how long tunneling takes.
+\item \textbf{B} solves the time-independent problem with a matrix: the two lowest states form a nearly degenerate doublet whose gap $\Delta E$ sets the tunneling time $\pi/\Delta E$.
+\item \textbf{C} asks how good the cheap ``two Gaussians'' picture is: good for the energies, bad for the gap.
+\item \textbf{D} compares the exact two-state evolution with A's path-integral code, which isolates the \emph{numerical} error of the path integral.
+\end{itemize}
+
+\textbf{Numerical conventions (from the assignment).} $N_D+1=601$ points on $[-4,4]$, $\Delta x=8/600$; time step $\epsilon=\pi/128$; every integral is $\int f\,dx\approx\Delta x\sum_{i=0}^{N_D}f(x_i)$, \emph{including both endpoints}.
+
+% =====================================================================
+\section{Setup: the potential and the harmonic approximation}
+\textbf{Minima and barrier.}
+\[
+V'(x)=4\alpha x^3-4x=0\;\Rightarrow\;x=0\ \text{(barrier top)}\quad\text{or}\quad x=\pm x_{\min}=\pm\frac1{\sqrt\alpha}=\pm1.7455,
+\]
+\[
+V(\pm x_{\min})=\frac{\alpha}{\alpha^2}-\frac2\alpha+\frac1\alpha=0,\qquad V(0)=\frac1\alpha .
+\]
+\textbf{Curvature, independent of $\alpha$.}
+\[
+V''(x)=12\alpha x^2-4\;\Rightarrow\;V''(x_{\min})=12\alpha\cdot\frac1\alpha-4=8
+\;\Rightarrow\;V_\pm(x)=4(x\mp x_{\min})^2=\tfrac12\omega^2(x\mp x_{\min})^2,\quad\omega=2\sqrt2 .
+\]
+\textbf{Local ground states and their combinations.}
+\[
+\psi_\pm(x)=\Big(\frac\omega\pi\Big)^{1/4}e^{-\frac\omega2(x\mp x_{\min})^2},\qquad
+\psi_S=\frac{\psi_++\psi_-}{\sqrt2}\ (\text{even}),\qquad \psi_A=\frac{\psi_+-\psi_-}{\sqrt2}\ (\text{odd}).
+\]
+$\psi_\pm$ is a minimum-uncertainty Gaussian: $\Delta x=1/\sqrt{2\omega}=0.42$, $\Delta p=\sqrt{\omega/2}=1.19$, $\Delta x\Delta p=\tfrac12$. These do not depend on $\alpha$; only the position $x_{\min}$ does.
+
+\textbf{Exact expansion around a minimum} (used in A and C). With $u=x-x_{\min}$ and $\alpha x_{\min}^2=1$, the constant and linear terms cancel:
+\[
+V(x)=\underbrace{4u^2}_{V_+}+4\sqrt\alpha\,u^3+\alpha u^4 .
+\]
+The cubic term is negative on the inner side ($u<0$), so the true barrier is \emph{softer} than the parabola. On the outer side ($u>0$) the wall is \emph{steeper}.
+
+\begin{lstlisting}[firstnumber=7]
+TSN = "200288141"
+ALPHA = 0.3 + int(TSN[-3:]) / 5000                     # = 0.3282
+BOXSIZE, ND = 8.0, 600                                 # interval [-4, 4], 600 intervals
+DELTAX = BOXSIZE / ND
+x = np.linspace(-BOXSIZE / 2, BOXSIZE / 2, ND + 1)     # 601 points, both endpoints included
+DELTAT = np.pi / 128                                   # time step epsilon
+XMIN = 1 / np.sqrt(ALPHA)                              # well minima at +/- XMIN
+OMEGA = 2 * np.sqrt(2)                                 # harmonic frequency (V'' = 8 = omega^2)
+N_EXPORT = np.arange(0, 2049, 64)                      # results.json steps n = 0, 64, ..., 2048
+\end{lstlisting}
+\begin{lstlisting}[firstnumber=24]
+def integrate(f):
+    """Grid integral: dx * sum over all 601 points (assignment convention)."""
+    return DELTAX * np.sum(f)
+\end{lstlisting}
+\code{integrate} is the single implementation of $\int f\,dx$; every normalization, expectation value and overlap goes through it, so all problems use the same convention.
+
+% =====================================================================
+\section{Problem A: path-integral tunneling}
+\subsection{Propagator}
+For a time-independent $\hat H$,
+\[
+\psi(x_b,t+\epsilon)=\int K(x_b,\epsilon;x_a,0)\,\psi(x_a,t)\,dx_a,\qquad K(x_b,\epsilon;x_a,0)=\langle x_b|e^{-i\hat H\epsilon}|x_a\rangle .
+\]
+$K$ depends only on the step length $\epsilon$, never on $t$, so one kernel advances the state at every step.
+
+\subsection{Short-time kernel}
+Over a short step the dominant path is the straight line with velocity $v=(x_b-x_a)/\epsilon$. Its action, with the midpoint rule for $\int V\,dt$, is
+\[
+S=\int_0^\epsilon\Big[\tfrac12\dot x^2-V(x)\Big]dt\approx\frac{(x_b-x_a)^2}{2\epsilon}-\epsilon\,V\!\Big(\frac{x_a+x_b}2\Big),
+\qquad K\approx A\,e^{iS},\quad A=\frac1{\sqrt{2\pi i\epsilon}} .
+\]
+Dropping $A$ gives the assignment's kernel
+\[
+\boxed{\tilde K(x_b,\epsilon;x_a,0)=\exp\Big[i\Big(\frac{(x_b-x_a)^2}{2\epsilon}-V\Big(\frac{x_a+x_b}2\Big)\epsilon\Big)\Big]}
+\]
+(first term: free-particle phase; second: phase picked up from the potential during the step).
+
+\subsection{Why the prefactor can be dropped}
+$A$ is a constant (independent of $x_a,x_b,t$). Dropping it multiplies $\psi$ by the same factor everywhere, which leaves its shape and relative phases unchanged, and the renormalization
+\[
+\psi\leftarrow\frac{\psi}{\sqrt{\int|\psi|^2dx}}
+\]
+after every step removes the factor. Numerically, each un-renormalized step shrinks $\psi$ by $|1/A|=\sqrt{2\pi\epsilon}=0.39$ (checked), so without renormalizing $\psi$ would underflow to $0$ within $\sim760$ steps. Renormalizing also absorbs the small non-unitarity of a finite grid.
+
+\subsection{From the integral to a matrix}
+On the grid the integral becomes a Riemann sum, i.e.\ a matrix--vector product:
+\[
+\psi_i(t+\epsilon)=\Delta x\sum_{j=0}^{N_D}\tilde K_{ij}\,\psi_j(t),\qquad\tilde K_{ij}=\tilde K(x_i,\epsilon;x_j,0),
+\]
+where row $i$ is the arrival point $x_b$ and column $j$ the starting point $x_a$. Using $x_i-x_j=(i-j)\Delta x$ and $\frac{x_i+x_j}2=x_{(i+j)/2}$, every entry factorizes:
+\[
+\tilde K_{ij}=p_{|i-j|}\,q_{i+j},\qquad p_k=e^{i\kappa k^2}\ \text{(kinetic)},\quad q_s=e^{-i\epsilon V(x_{s/2})}\ \text{(potential)},\quad\kappa=\frac{\Delta x^2}{2\epsilon}\approx3.62\times10^{-3}.
+\]
+\[
+\tilde K=
+\begin{pmatrix}
+q_0 & p_1q_1 & p_2q_2 & \cdots & p_{N_D}q_{N_D}\\
+p_1q_1 & q_2 & p_1q_3 & \cdots & p_{N_D-1}q_{N_D+1}\\
+p_2q_2 & p_1q_3 & q_4 & \cdots & p_{N_D-2}q_{N_D+2}\\
+\vdots & \vdots & \vdots & \ddots & \vdots\\
+p_{N_D}q_{N_D} & p_{N_D-1}q_{N_D+1} & p_{N_D-2}q_{N_D+2} & \cdots & q_{2N_D}
+\end{pmatrix}.
+\]
+For $N_D=2$ (the top-left corner of the same pattern):
+\[
+\tilde K=\begin{pmatrix}
+e^{-i\epsilon V(x_0)} & e^{i\kappa}e^{-i\epsilon V(x_{1/2})} & e^{4i\kappa}e^{-i\epsilon V(x_1)}\\
+e^{i\kappa}e^{-i\epsilon V(x_{1/2})} & e^{-i\epsilon V(x_1)} & e^{i\kappa}e^{-i\epsilon V(x_{3/2})}\\
+e^{4i\kappa}e^{-i\epsilon V(x_1)} & e^{i\kappa}e^{-i\epsilon V(x_{3/2})} & e^{-i\epsilon V(x_2)}
+\end{pmatrix}.
+\]
+\textbf{Properties.}
+\begin{itemize}
+\item \textbf{Symmetric} ($\tilde K=\tilde K^T$): $(i-j)^2$ and $i+j$ are unchanged by swapping. It is complex symmetric, \emph{not} Hermitian.
+\item \textbf{Dense, pure phases:} $|\tilde K_{ij}|=1$. In one step every point sends amplitude to every point.
+\item The \textbf{kinetic} factor is constant along diagonals (it depends only on the jump length and not on $\alpha$); the \textbf{potential} factor is constant along anti-diagonals (it depends on the midpoint, and is the only place $\alpha$ enters). The diagonal is $e^{-i\epsilon V(x_i)}$: staying put costs only potential phase.
+\item \textbf{Effective band:} the kinetic phase stays below $\pi$ for $|i-j|\lesssim\sqrt{\pi/\kappa}\approx29$ points ($\sqrt{2\pi\epsilon}\approx0.39$ in $x$). Longer jumps spin rapidly and cancel in the sum, so one step really moves amplitude only $\sim0.4$.
+\item \textbf{Resolution limit:} neighbouring entries in a row differ in phase by $\kappa(2k+1)$, $k=|i-j|$. Beyond $k\approx433$ this exceeds $\pi$ (under-resolved). At $k^*=\pi/\kappa\approx867$ it reaches $2\pi$ and the sum would behave like a fake stationary point (a ``ghost path''). That is harmless here because the longest jump is $N_D=600<867$ (see Problem D).
+\item $\tilde K\approx e^{-iH\epsilon}$ is dense although $H$ (Problem B) is tridiagonal, because exponentiating a local operator couples every point.
+\end{itemize}
+
+\subsection{Algorithm and code}
+\[
+\boldsymbol\phi=\Delta x\,\tilde K\boldsymbol\psi^{(n)},\qquad\boldsymbol\psi^{(n+1)}=\frac{\boldsymbol\phi}{\sqrt{\Delta x\sum_i|\phi_i|^2}},\qquad\langle x\rangle(n\epsilon)=\Delta x\sum_ix_i\,|\psi_i^{(n)}|^2 .
+\]
+\begin{lstlisting}[firstnumber=1]
+@njit
+def build_kernel(x, dt, alpha):
+    """K~_ij = exp{ i[ (x_i - x_j)^2 / (2 dt) - V((x_i + x_j)/2) dt ] }; row i = arrival, column j = start."""
+    K = np.empty((x.size, x.size), dtype=np.complex128)
+    for i in range(x.size):
+        for j in range(x.size):
+            K[i, j] = np.exp(1j * (0.5 * (x[i] - x[j])**2 / dt - V(0.5 * (x[i] + x[j]), alpha) * dt))
+    return K
+
+@njit
+def evolve(psi0, K, dx, nt):
+    psi = psi0.astype(np.complex128) / np.sqrt(dx * np.sum(np.abs(psi0)**2))
+    prob = np.empty((nt + 1, psi.size))
+    prob[0] = np.abs(psi)**2
+    for n in range(nt):
+        psi = dx * (K @ psi)                                    # one step: matrix-vector product
+        psi = psi / np.sqrt(dx * np.sum(np.abs(psi)**2))        # renormalize (prefactor dropped)
+        prob[n + 1] = np.abs(psi)**2
+    return prob
+
+K_tilde = build_kernel(x, DELTAT, ALPHA)                        # built once (first call also compiles)
+T_RUN = 48 * np.pi                                              # >= 16 pi and >= 2 pi/dE (checked in B)
+t = np.arange(int(np.ceil(T_RUN / DELTAT)) + 1) * DELTAT
+x_mean_A = DELTAX * (evolve(psi_plus, K_tilde, DELTAX, t.size - 1) @ x)  # <x>(t) = dx sum_i x_i |psi_i|^2
+n_tunnel = np.argmin(x_mean_A)                                  # deepest point = first major minimum
+t_tunnel = t[n_tunnel]
+x_mean_pi = x_mean_A[N_EXPORT]                                  # for results.json
+\end{lstlisting}
+\begin{center}\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Math} & \textbf{Code}\\
+\midrule
+$\tilde K_{ij}$ (boxed kernel) & line 7: \code{K[i, j] = np.exp(1j * (...))}\\
+$\Delta x\sum_j\tilde K_{ij}\psi_j$ & line 16: \code{dx * (K @ psi)}\\
+$\psi\leftarrow\psi/\sqrt{\Delta x\sum|\psi|^2}$ & line 17 (and line 12 for the initial state)\\
+$\langle x\rangle=\Delta x\sum_ix_i|\psi_i|^2$ & line 24: \code{DELTAX * (prob @ x)} (all time steps at once)\\
+$t_\text{tunnel}$ = first major minimum & lines 25--26: \code{argmin} over a run of $48\pi$\\
+\bottomrule
+\end{tabular}
+\end{center}
+\code{@njit} compiles the double loop ($601^2\approx3.6\times10^5$ complex exponentials) and the 6144 matrix--vector products. \code{V} must also be \code{@njit} because the compiled loop calls it.
+
+\subsection{Run length and the tunneling time}
+The run must cover $\ge16\pi$ (for \code{results.json}) and at least one slow period $2\pi/\Delta E\approx132$. I use $48\pi\approx151$ ($6144$ steps). Since $2\pi/\Delta E<48\pi<3\pi/\Delta E\approx198$, the run contains exactly one major minimum, so the global \code{argmin} is the first major minimum. Zero crossings are unreliable, because the fast wiggles cross zero several times.
+
+\subsection{What to expect: the eigenstate picture}
+Expanding the initial state in eigenstates, $\psi_+=\sum_nc_n\phi_n$ ($c_n=\int\phi_n\psi_+dx$, real), each component only acquires a phase:
+\[
+\psi(x,t)=\sum_nc_ne^{-iE_nt}\phi_n\;\Rightarrow\;
+\langle x\rangle(t)=\sum_{m,n}c_mc_n\,x_{mn}\cos\big((E_n-E_m)t\big),\qquad x_{mn}=\int\phi_m\,x\,\phi_n\,dx .
+\]
+\begin{itemize}
+\item \textbf{Parity:} $x$ is odd, so $x_{mn}\ne0$ only for opposite-parity pairs.
+\item \textbf{Slow transfer:} $94.7\%$ of $\psi_+$ is in the doublet $\phi_0,\phi_1$, which gives $\propto\cos(\Delta E\,t)$ with period $2\pi/\Delta E$: right $\to$ left $\to$ right.
+\item \textbf{Fast wiggles:} the other $5.3\%$ is in higher states, which beat with the doublet at the next level spacing $E_2-E_{0,1}\approx1.8$ (period $\approx3.4$). Physically the Gaussian is not exactly the well's ground state (the true well is asymmetric), so the packet sloshes inside the well.
+\end{itemize}
+\begin{resbox}{Results (A)}
+$t_\text{tunnel}=63.96$, $\langle x\rangle=-1.717$, compared with $\pi/\Delta E=65.84$ and the two-state value $-x_{01}=-1.550$. The minimum is earlier and deeper because a fast low point coincides with the slow minimum. D's pure two-state run, with the same code, has no such wiggles, so the shift is physical (higher states) and not numerical. The fast period is $\approx3.4$ (median spacing of local minima).
+\end{resbox}
+
+% =====================================================================
+\section{Problem B: numerical eigenstates}
+\subsection{Discretizing the Schr\"odinger equation}
+We need $-\tfrac12\phi''+V\phi=E\phi$. Taylor-expand around $x_i$:
+\[
+\phi_{i\pm1}=\phi_i\pm\Delta x\,\phi_i'+\tfrac{\Delta x^2}{2}\phi_i''\pm\tfrac{\Delta x^3}{6}\phi_i'''+\tfrac{\Delta x^4}{24}\phi_i''''+\dots
+\;\Rightarrow\;
+\frac{\phi_{i+1}-2\phi_i+\phi_{i-1}}{\Delta x^2}=\phi_i''+\frac{\Delta x^2}{12}\phi_i''''+\mathcal O(\Delta x^4).
+\]
+The odd terms cancel, so the centred three-point formula is \textbf{second order}. At each grid point:
+\[
+-\frac{1}{2\Delta x^2}\big(\phi_{i+1}-2\phi_i+\phi_{i-1}\big)+V(x_i)\phi_i=E\phi_i .
+\]
+
+\subsection{The Hamiltonian matrix}
+With $d_i=\frac1{\Delta x^2}+V(x_i)$ and $\tau=\frac1{2\Delta x^2}$ (on our grid $1/\Delta x^2=5625$, $\tau=2812.5$), this is $H\boldsymbol\phi=E\boldsymbol\phi$:
+\[
+H=\begin{pmatrix}
+d_0 & -\tau & & & \\
+-\tau & d_1 & -\tau & & \\
+ & \ddots & \ddots & \ddots & \\
+ & & -\tau & d_{N_D-1} & -\tau\\
+ & & & -\tau & d_{N_D}
+\end{pmatrix}
+=\underbrace{\frac{1}{2\Delta x^2}\begin{pmatrix}2&-1&&\\-1&2&-1&\\&\ddots&\ddots&\ddots\\&&-1&2\end{pmatrix}}_{T=-\frac12\frac{d^2}{dx^2}}
++\underbrace{\begin{pmatrix}V(x_0)&&&\\&V(x_1)&&\\&&\ddots&\\&&&V(x_{N_D})\end{pmatrix}}_{\mathrm{diag}(V)}.
+\]
+\textbf{Toy example} ($N_D=4$, so $\Delta x=2$, $x=-4,-2,0,2,4$, $\alpha=0.3282$; far too coarse, but it shows the structure):
+\[
+H=\begin{pmatrix}
+55.3161 & -0.125 & 0 & 0 & 0\\
+-0.125 & 0.5481 & -0.125 & 0 & 0\\
+0 & -0.125 & 3.2969 & -0.125 & 0\\
+0 & 0 & -0.125 & 0.5481 & -0.125\\
+0 & 0 & 0 & -0.125 & 55.3161
+\end{pmatrix}
+\]
+The large corners are the outer walls ($V(\pm4)\approx55$), the centre is the barrier ($1/\alpha$), and the small entries at $x=\pm2$ are near the wells.
+
+\subsection{Boundary conditions}
+Row 0 has no left neighbour:
+\[
+d_0\phi_0-\tau\phi_1=E\phi_0\quad\Longleftrightarrow\quad-\frac1{2\Delta x^2}\big(\phi_1-2\phi_0+\underbrace{\phi_{-1}}_{=0}\big)+V(x_0)\phi_0=E\phi_0 .
+\]
+So the matrix imposes $\phi=0$ at the ghost points $x_0-\Delta x$ and $x_{N_D}+\Delta x$: hard walls just \emph{outside} the box.
+
+\subsection{Properties of $H$}
+\begin{itemize}
+\item \textbf{Real symmetric:} the eigenvalues are real and the eigenvectors are real and orthogonal.
+\item \textbf{Sparse:} $3N_D+1\approx1800$ nonzeros out of $601^2\approx361{,}000$, so it is stored with \code{scipy.sparse}.
+\item \textbf{Parity:} with the reversal matrix $J$ (ones on the anti-diagonal; e.g.\ for $3\times3$, $J=\begin{pmatrix}0&0&1\\0&1&0\\1&0&0\end{pmatrix}$), $JHJ=H$ because $V(-x)=V(x)$. So every non-degenerate eigenvector satisfies $J\boldsymbol\phi=\pm\boldsymbol\phi$: $\phi_0$ is even (no node) and $\phi_1$ odd (node at $0$).
+\item \textbf{Positive definite:} $T$ has eigenvalues $\frac{2}{\Delta x^2}\sin^2\!\frac{k\pi}{2(N_D+2)}>0$ and $V\ge0$, so all $E_n>0$.
+\item \textbf{Spectrum:} $0<E_n\lesssim\frac{2}{\Delta x^2}+\max V\approx11{,}300$ (Gershgorin). The states we need ($\sim1.3$) sit at the very bottom.
+\end{itemize}
+
+\subsection{The solver: shift-invert and inverse iteration}
+Krylov methods (ARPACK, behind \code{eigsh}) converge fastest to eigenvalues of \emph{largest} magnitude. Shift-invert maps the ones we want there:
+\[
+H\boldsymbol\phi_n=E_n\boldsymbol\phi_n\iff(H-\sigma I)^{-1}\boldsymbol\phi_n=\frac{1}{E_n-\sigma}\boldsymbol\phi_n .
+\]
+The eigenvectors are unchanged; the $E_n$ nearest $\sigma$ become the largest. $\sigma=0$ is valid because all $E_n>0$. Harmonic estimates ($\omega/2\approx1.4$ for the doublet, $3\omega/2\approx4.2$ next) give $1/E\approx0.7$ vs.\ $0.24$: well separated, so convergence takes only a few iterations.
+
+\textbf{Inverse power iteration} (the idea): repeat $(H-\sigma I)\boldsymbol u_{k+1}=\boldsymbol u_k$, $\boldsymbol u_{k+1}\leftarrow\boldsymbol u_{k+1}/\|\boldsymbol u_{k+1}\|$. The component along $\phi_n$ grows like $(E_n-\sigma)^{-k}$, so the state nearest $\sigma$ wins.
+
+\textbf{Never form the inverse} (it is dense). Factor the tridiagonal matrix once, $H-\sigma I=LU$:
+\[
+L=\begin{pmatrix}1&&&\\\ell_1&1&&\\&\ddots&\ddots&\\&&\ell_{N_D}&1\end{pmatrix},\quad
+U=\begin{pmatrix}u_0&-\tau&&\\&u_1&-\tau&\\&&\ddots&\ddots\\&&&u_{N_D}\end{pmatrix},\quad
+u_0=d_0-\sigma,\ \ \ell_i=-\frac{\tau}{u_{i-1}},\ \ u_i=d_i-\sigma-\frac{\tau^2}{u_{i-1}}
+\]
+(from matching $(LU)_{i,i-1}=\ell_iu_{i-1}=-\tau$ and $(LU)_{ii}=u_i-\tau\ell_i=d_i-\sigma$). Each iteration is then a forward and a back substitution, costing $\mathcal O(N_D)$.
+
+\subsection{From eigenvectors to wave functions}
+\code{eigsh} returns unit vectors, $\sum_i|v_i|^2=1$, but a wave function needs $\Delta x\sum_i|\phi_i|^2=1$:
+\[
+\phi_i=\frac{v_i}{\sqrt{\Delta x}}\quad\Rightarrow\quad\Delta x\sum_i|\phi_i|^2=\Delta x\cdot\frac1{\Delta x}\sum_i|v_i|^2=1 .
+\]
+Signs are arbitrary (ARPACK starts from a random vector), so I fix $\phi_0>0$ and the right lobe of $\phi_1>0$. Then $(\phi_0+\phi_1)/\sqrt2$ lies in the \emph{right} well and $x_{01}>0$.
+
+\subsection{Expected accuracy (B(i), B(ii))}
+\begin{itemize}
+\item \textbf{Grid error.} The discrete kinetic operator is $T_d=T-\frac{\Delta x^2}{24}\frac{d^4}{dx^4}=T-\frac{\Delta x^2}{24}p^4$. To first order, $\delta E_n\approx-\frac{\Delta x^2}{24}\langle p^4\rangle_n$. For a harmonic ground state, $p$ is Gaussian with $\langle p^2\rangle=\omega/2$, so $\langle p^4\rangle=3(\omega/2)^2=6$ and
+\[
+\delta E\approx-\frac{(8/600)^2}{24}\cdot6\approx-4\times10^{-5}\qquad(\text{too low; 4--5 matching digits}).
+\]
+\item \textbf{Box error.} The walls push $E$ up, but $V(\pm4)\approx55\gg E$, so it is negligible.
+\item \textbf{Gap.} $E_0$ and $E_1$ have similar same-sign errors, which cancel in $\Delta E$.
+\item \textbf{Richardson.} If $E(\Delta x)=E^*+c\Delta x^2$, halving $\Delta x$ removes $\tfrac34$ of the error, and $E^*\approx E_\text{half}+\tfrac13(E_\text{half}-E_\text{orig})$.
+\end{itemize}
+
+\subsection{Code}
+\begin{lstlisting}[firstnumber=1]
+def make_hamiltonian(alpha, L=BOXSIZE, nd=ND):
+    """Sets the grid (dx = L/nd) and builds the sparse three-point Hamiltonian H."""
+    xg = np.linspace(-L / 2, L / 2, nd + 1)
+    dx = L / nd                                         # grid spacing
+    off = np.full(nd, -1 / (2 * dx**2))                 # H_{i,i+1} = H_{i+1,i} = -1/(2 dx^2)
+    H = scipy.sparse.diags([off, 1 / dx**2 + V(xg, alpha), off], [-1, 0, 1], format="csc")  # H_ii = 1/dx^2 + V
+    return xg, dx, H
+
+def lowest_two(alpha, L=BOXSIZE, nd=ND):
+    """Two lowest eigenpairs by shift-invert (sigma = 0), normalized and sign-fixed."""
+    xg, dx, H = make_hamiltonian(alpha, L, nd)
+    E, v = scipy.sparse.linalg.eigsh(H, k=2, sigma=0, which="LM")
+    order = np.argsort(E)
+    E, phi = E[order], v[:, order] / np.sqrt(dx)        # unit vectors -> dx sum |phi|^2 = 1
+    phi[:, 0] *= np.sign(np.sum(phi[:, 0]))             # phi0 positive
+    phi[:, 1] *= np.sign(np.sum(phi[xg > 0, 1]))        # right lobe of phi1 positive
+    return xg, dx, H, E[0], E[1], phi[:, 0], phi[:, 1]
+\end{lstlisting}
+\begin{center}\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Math} & \textbf{Code}\\
+\midrule
+$\Delta x=L/N_D$ (``the code that sets the grid spacing'') & line 4\\
+$-\tau$ off-diagonals, $d_i$ diagonal, tridiagonal sparse $H$ & lines 5--6 (\code{diags} with offsets $-1,0,1$)\\
+boundary rows (no outside neighbour) & automatic: \code{off} has length $N_D$, so rows $0,N_D$ get one neighbour\\
+shift-invert, $\sigma=0$ & line 12: \code{eigsh(H, k=2, sigma=0, which="LM")}\\
+sort, $\phi=v/\sqrt{\Delta x}$ & lines 13--14\\
+sign convention & lines 15--16\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{resbox}{Results (B)}
+\textbf{B(i)} (vs.\ Banerjee \& Bhatnagar, $\lambda=\alpha/4$): 4--5 digits agree. All errors are negative, $-2$ to $-4\times10^{-5}$ (as predicted), and halving $\Delta x$ divides every error by exactly $4.00$, so the agreement is limited by the second-order grid error.\\
+\textbf{B(ii)} ($\alpha=0.3282$): $E_0=1.2924391655$, $E_1=1.3401570118$, $\Delta E=0.0477178463$. Half spacing: the energies shift by $+2.6\times10^{-5}$ but $\Delta E$ only by $+1.4\times10^{-6}$ (cancellation). Larger box: $\sim10^{-9}$. Quoted: $E_0=1.2924$, $E_1=1.3402$, $\Delta E=0.04772$.\\
+\textbf{B(iii)}: normalized and orthogonal (overlap $\sim10^{-16}$); $\phi_0$ even and nodeless, $\phi_1$ odd; nearly identical lobes in each well, hence the near-degeneracy.
+\end{resbox}
+
+% =====================================================================
+\section{Problem C: harmonic-approximation energies}
+\subsection{Rayleigh quotient and the variational principle}
+For any trial $\psi=\sum_nc_n\phi_n$,
+\[
+E[\psi]=\frac{\int\psi^*\hat H\psi\,dx}{\int|\psi|^2dx}=\frac{\sum_n|c_n|^2E_n}{\sum_n|c_n|^2}\ \ge\ \text{lowest }E_n\text{ present}.
+\]
+$\psi_S$ gives $E_S\ge E_0$. $\psi_A$ is odd, so $c_0=c_2=\dots=0$ and $E_A\ge E_1$. \textbf{Both signed errors must be positive.} At an eigenvector the first-order change of $E[\psi]$ vanishes (the quotient is stationary), so $E[\phi_n+\delta]-E_n=\mathcal O(\|\delta\|^2)$: energies are much more accurate than the wave functions.
+
+\subsection{Overlap and the denominators}
+The product of the two Gaussians is a Gaussian at $0$:
+\[
+S=\int\psi_+\psi_-dx=\sqrt{\tfrac\omega\pi}\int e^{-\frac\omega2[(x-x_{\min})^2+(x+x_{\min})^2]}dx=\sqrt{\tfrac\omega\pi}\,e^{-\omega x_{\min}^2}\int e^{-\omega x^2}dx=e^{-\omega/\alpha}\approx1.8\times10^{-4},
+\]
+\[
+\int|\psi_S|^2=\tfrac12(1+1+2S)=1+S,\qquad\int|\psi_A|^2=1-S .
+\]
+Dropping the denominators would shift $E_{S,A}$ by $\sim ES\approx2\times10^{-4}$: ten times B's grid error and $5\%$ of the harmonic gap.
+
+\subsection{On the grid}
+With B's matrix, $E_S=\boldsymbol\psi_S^TH\boldsymbol\psi_S/\boldsymbol\psi_S^T\boldsymbol\psi_S$ (the $\Delta x$ cancels). Written out:
+\[
+\boldsymbol\psi^TH\boldsymbol\psi=\underbrace{\frac1{2\Delta x^2}\Big[\sum_{i=0}^{N_D-1}(\psi_{i+1}-\psi_i)^2+\psi_0^2+\psi_{N_D}^2\Big]}_{\text{kinetic}\,\approx\,\frac12\int|\psi'|^2/\Delta x}+\underbrace{\sum_iV(x_i)\psi_i^2}_{\text{potential}} .
+\]
+The kinetic part is a sum of squared differences (manifestly positive), and the $\psi_0^2,\psi_{N_D}^2$ terms are the walls.
+
+\subsection{Two-state (Rayleigh--Ritz) structure}
+In the basis $\{\psi_+,\psi_-\}$, with $h_d=\langle\psi_\pm|\hat H|\psi_\pm\rangle$ and $h_o=\langle\psi_+|\hat H|\psi_-\rangle$ (equal by mirror symmetry), $\mathsf H\boldsymbol c=E\,\mathsf S\boldsymbol c$:
+\[
+\begin{pmatrix}h_d&h_o\\h_o&h_d\end{pmatrix}\begin{pmatrix}1\\\pm1\end{pmatrix}=E\begin{pmatrix}1&S\\S&1\end{pmatrix}\begin{pmatrix}1\\\pm1\end{pmatrix}
+\;\Rightarrow\;
+E_S=\frac{h_d+h_o}{1+S},\quad E_A=\frac{h_d-h_o}{1-S},
+\]
+\[
+\Delta E_\text{harm}=E_A-E_S=\frac{(h_d-h_o)(1+S)-(h_d+h_o)(1-S)}{1-S^2}=\frac{2(Sh_d-h_o)}{1-S^2}.
+\]
+$\psi_S,\psi_A$ are the best combinations of $\psi_\pm$. The gap depends only on $S$ and $h_o$, i.e.\ on the \textbf{barrier region} where $\psi_+$ and $\psi_-$ overlap.
+
+\subsection{Analytic $h_d$, $h_o$ and the harmonic gap}
+Since $\psi_\pm$ is the exact ground state of $-\frac12\partial_x^2+V_\pm$, we have $\hat H\psi_\pm=\frac\omega2\psi_\pm+(V-V_\pm)\psi_\pm$. Gaussian moments ($\sigma^2=\frac1{2\omega}$): $\langle u^3\rangle=0$, $\langle u^4\rangle=3\sigma^4$.
+\[
+h_d=\frac\omega2+\alpha\cdot3\sigma^4=\sqrt2+\frac{3\alpha}{32}.
+\]
+For $h_o$: $V-V_-=-4\sqrt\alpha\,w^3+\alpha w^4$ ($w=x+x_{\min}$) and $\psi_+\psi_-=S\times$(normalized Gaussian at $0$, variance $\sigma^2$). With $a=x_{\min}$, $\langle w^3\rangle=a^3+3a\sigma^2$, $\langle w^4\rangle=a^4+6a^2\sigma^2+3\sigma^4$, $\sqrt\alpha a=1$, $\alpha a^2=1$:
+\[
+h_o=S\Big[\frac\omega2-4a^2-12\sigma^2+a^2+6\sigma^2+3\alpha\sigma^4\Big]=S\Big[\frac\omega2-\frac3\alpha-\frac3\omega+\frac{3\alpha}{32}\Big].
+\]
+Then $Sh_d-h_o=3S(\frac1\alpha+\frac1\omega)$, so
+\[
+\boxed{\Delta E_\text{harm}=\frac{6S}{1-S^2}\Big(\frac1\alpha+\frac1\omega\Big)}\approx3.69\times10^{-3}\quad\text{vs.}\quad\Delta E=0.0477 .
+\]
+
+\subsection{Why the gap fails while the energies do not}
+\begin{enumerate}
+\item \textbf{Error arithmetic.} With $\delta_S=E_S-E_0$ and $\delta_A=E_A-E_1$: $\Delta E_\text{harm}-\Delta E=\delta_A-\delta_S$. The energy errors are divided by $E\approx1.3$, the gap error by $\Delta E\approx0.048$ ($27\times$ smaller).
+\item \textbf{The gap lives at the barrier.} Multiply $-\frac12\phi_0''+V\phi_0=E_0\phi_0$ by $\phi_1$ and vice versa, subtract, integrate over $x>0$, and use $\phi_1(0)=0$, $\phi_0'(0)=0$:
+\[
+-\tfrac12\big[\phi_1\phi_0'-\phi_0\phi_1'\big]_0^\infty=(E_0-E_1)\int_0^\infty\phi_0\phi_1\,dx
+\;\Rightarrow\;
+\Delta E=\frac{\phi_0(0)\,\phi_1'(0)}{2\int_0^\infty\phi_0\phi_1dx}\approx\phi_0(0)\phi_1'(0).
+\]
+\item \textbf{The parabola misses the barrier.} $V_+(0)=4/\alpha=12.2$ vs.\ the true $V(0)=3.05$, so the Gaussian decays far too fast inside the barrier: $\phi_0(0)/\psi_S(0)=8.6$. Too little amplitude at $x=0$ means too small a gap.
+\item In the \textbf{outer walls} the opposite happens ($u^3,u^4>0$, steeper wall): $|\phi_0|<|\psi_S|$.
+\end{enumerate}
+\begin{lstlisting}
+psi_S = (psi_plus + psi_minus) / np.sqrt(2)             # unnormalized, as defined
+psi_A = (psi_plus - psi_minus) / np.sqrt(2)
+E_S, E_A = (integrate(p * (H @ p)) / integrate(p * p) for p in (psi_S, psi_A))   # Rayleigh quotients, B's H
+S = integrate(psi_plus * psi_minus)                     # checked against exp(-omega/alpha)
+\end{lstlisting}
+\begin{resbox}{Results (C)}
+$E_S=1.4431$ ($\delta_S=+0.151$, $11.7\%$), $E_A=1.4468$ ($\delta_A=+0.107$, $8.0\%$); gap $0.00369$ vs.\ $0.0477$: $92\%$ too small. $\delta_A-\delta_S=-0.044\approx-\Delta E$. The grid $S$ and gap match the closed forms to $\sim10^{-6}$. Log plot: curves agree in the wells; $\phi_0/\psi_S=8.6$ at $x=0$ (barrier $|x|<1.03$).
+\end{resbox}
+
+% =====================================================================
+\section{Problem D: comparing two evolution methods}
+\subsection{Initial state}
+$\psi(x,0)=(\phi_0+\phi_1)/\sqrt2$ with B's signs: the two add on the right and cancel on the left, so the state is in the right well. $\int|\psi|^2=\tfrac12(1+1+2\int\phi_0\phi_1)=1$ by orthonormality. Evolve to the first step at or after $T=2\pi/\Delta E$ ($5365$ steps).
+
+\subsection{D(i): exact two-state evolution}
+\[
+\psi(x,t)=\tfrac1{\sqrt2}\big(e^{-iE_0t}\phi_0+e^{-iE_1t}\phi_1\big)
+\;\Rightarrow\;
+|\psi|^2=\tfrac12\big[\phi_0^2+\phi_1^2+2\phi_0\phi_1\cos(\Delta E\,t)\big]\quad(\phi_n\text{ real}),
+\]
+\[
+\langle x\rangle(t)=\tfrac12\big[x_{00}+x_{11}+2x_{01}\cos(\Delta E\,t)\big]=\boxed{x_{01}\cos(\Delta E\,t)},\qquad t_\text{tunnel}=\frac{\pi}{\Delta E}.
+\]
+\begin{itemize}
+\item \textbf{Normalization:} the $1/\sqrt2$ gives the $\tfrac12$; orthonormality keeps $\int|\psi|^2=1$ for all $t$ (the cross term integrates to $0$).
+\item \textbf{Symmetry:} $\phi_n^2$ even, $x$ odd $\Rightarrow x_{00}=x_{11}=0$; $\phi_0\phi_1$ odd $\Rightarrow x\phi_0\phi_1$ even $\Rightarrow x_{01}\ne0$. Exact on the symmetric grid (numerically $\sim10^{-12}$).
+\item \textbf{Mirror image:} at $t_\text{tunnel}$, $|\psi|^2=\tfrac12(\phi_0-\phi_1)^2(x)=|\psi(-x,0)|^2$.
+\item \textbf{Probability in each well:} $P_\text{right}(t)\approx\cos^2(\Delta Et/2)$ and $P_\text{left}\approx\sin^2(\Delta Et/2)$, so $\langle x\rangle\approx x_{01}(P_\text{right}-P_\text{left})$.
+\end{itemize}
+
+\subsection{D(ii)--(iii): the path integral and its error}
+With only $\phi_0,\phi_1$ present, an exact propagator would reproduce the pure cosine. But $\Delta x\tilde K$ only approximates $e^{-iH\epsilon}$; effectively the path integral has slightly different eigenstates and energies:
+\begin{center}\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Pattern in $\langle x\rangle_\text{PI}-\langle x\rangle_\text{eig}$} & \textbf{Mechanism}\\
+\midrule
+growing phase drift & $\Delta E_\text{PI}\ne\Delta E$: $\cos((\Delta E+\delta)t)-\cos(\Delta Et)\approx-\delta\,t\sin(\Delta Et)$\\
+fast wiggles on the PI curve only & the state leaks into higher PI eigenstates and beats at $\approx E_2-E_{0,1}$\\
+shrinking amplitude or offset & $\tilde K$ is not unitary; renormalization reweights the components\\
+\bottomrule
+\end{tabular}
+\end{center}
+The errors accumulate, so the discrepancy is largest late in the run. \textbf{Order:} $\tilde K$ is time-symmetric ($\tilde K(-\epsilon)=\tilde K(\epsilon)^*$, $\tilde K=\tilde K^T$), so odd orders cancel and the error is $\propto\epsilon^2$.
+
+\textbf{The ghost-path condition.} Along a row the kinetic phase $\kappa k^2$ advances by $\kappa(2k+1)$ per grid point. When this reaches $2\pi$, at $k^*=\pi/\kappa=2\pi\epsilon/\Delta x^2$, the sampled phases look stationary again and a spurious path jumping $k^*\Delta x$ in one step contributes coherently. The method needs this outside the box:
+\[
+k^*>N_D=\frac L{\Delta x}\iff\boxed{2\pi\epsilon>L\,\Delta x}\qquad(\text{now }0.154>0.107).
+\]
+Halving $\epsilon$ alone gives $0.077<0.107$: broken. A larger box ($L=12$) at the same $\Delta x$ gives $0.160>0.154$: also broken (checked: error $\sim1.5$). A valid refinement halves $\epsilon$ \emph{and} $\Delta x$.
+
+\begin{lstlisting}
+psi0_D = (phi0 + phi1) / np.sqrt(2)                     # right-well two-state initial state
+T_D = 2 * np.pi / DELTA_E                               # one full oscillation
+t_D = np.arange(int(np.ceil(T_D / DELTAT)) + 1) * DELTAT   # up to the first step at or after T
+x01 = integrate(phi0 * x * phi1)
+x_mean_eig_D = x01 * np.cos(DELTA_E * t_D)              # D(i): exact, every step
+x_mean_eig = x01 * np.cos(DELTA_E * N_EXPORT * DELTAT)  # 33 export times, for results.json
+prob_PI_D = evolve(psi0_D, K_tilde, DELTAX, t_D.size - 1)   # D(ii): same code as A
+x_mean_PI_D = DELTAX * (prob_PI_D @ x)
+diff = x_mean_PI_D - x_mean_eig_D
+n_max = np.argmax(np.abs(diff[t_D <= T_D]))             # eq. (12): only steps with n eps <= T
+\end{lstlisting}
+\begin{resbox}{Results (D)}
+$x_{01}=1.550$; the PI minimum is at $66.29$ (exact $65.84$). Max discrepancy $0.075$ at $t=128.7$ ($\langle x\rangle_\text{PI}=1.459$, $\langle x\rangle_\text{eig}=1.535$). Pattern: zero at $t=0$ and growing, with fast wiggles (period $\approx3.5$) plus a slow negative drift late in the run; at $T$ the PI peak is lower and a small remnant stays in the left well. Check: halving $\epsilon$ and $\Delta x$ together reduces it $4\times$ (to $0.019$; verified); halving $\Delta x$ alone changes nothing.
+\end{resbox}
+
+% #####################################################################
+\part*{Part II --- Oral Checkpoint 2 preparation}
+\addcontentsline{toc}{part}{Part II --- Oral Checkpoint 2 preparation}
+
+\section{Format and how to score 3/3}
 \begin{keybox}{Five minutes, two questions (same for everyone)}
-\textbf{Q1 --- ``Walk me through your code.''} Say the stages \emph{in order}, what each does \emph{physically}, point to the cell \emph{without searching}, and give \emph{one non-obvious detail} (e.g.\ why a $\Delta x$ appears).\\
-\textbf{Q2 --- ``Suppose the assignment changed\ldots''} Say \emph{exactly} what changes, what \emph{stays the same}, any \emph{dependent quantity} that must follow, and \emph{predict} the effect on the results or accuracy.\\[2pt]
-Template answer: \emph{``This stage does X; physically it is Y; it happens here; the subtle point is Z.''}\quad Pauses are fine. Follow-ups are neutral (``say more'', ``show me where'').
+\textbf{Q1 --- ``Walk me through your code.''} Say the stages \emph{in order}, what each does \emph{physically}, point to the cell \emph{without searching}, and give \emph{one non-obvious detail}.\\
+\textbf{Q2 --- ``Suppose the assignment changed\ldots''} Say \emph{exactly} what changes, what \emph{stays the same}, any \emph{dependent quantity}, and \emph{predict} the effect.\\[2pt]
+Template: \emph{``This stage does X; physically it is Y; it happens here; the subtle point is Z.''}\quad Pauses are fine. Follow-ups are neutral.
 \end{keybox}
 
-% =====================================================================
-\section*{1. Numbers to know (original grid, $\alpha=0.3282$)}
+\section{Numbers to know}
 \begin{tabular}{@{}ll@{\qquad}ll@{}}
 \toprule
-$x_{\min}=1/\sqrt\alpha$ & $1.7455$ & barrier $V(0)=1/\alpha$ & $3.047$\\
-$\omega=2\sqrt2$ (since $V''(x_{\min})=8$) & $2.828$ & grid $N_D=600$, $\Delta x=8/600$ & $0.01333$\\
-time step $\epsilon=\pi/128$ & $0.02454$ & $\kappa=\Delta x^2/2\epsilon$ & $3.6\times10^{-3}$\\
-$E_0$ \;/\; $E_1$ & $1.29244$ \;/\; $1.34016$ & $\Delta E=E_1-E_0$ & $0.047718$\\
-$\pi/\Delta E$ \;/\; $2\pi/\Delta E$ & $65.84$ \;/\; $131.67$ & A: measured $t_\text{tunnel}$, $\langle x\rangle$ & $63.96$, $-1.717$\\
-$x_{01}=\int\phi_0x\phi_1$ & $1.550$ & weight of $\psi_+$ in $\phi_0,\phi_1$ & $94.7\%$\\
-$E_S$ \;/\; $E_A$ & $1.4431$ \;/\; $1.4468$ & harmonic gap (error) & $0.00369$ ($92\%$)\\
-$S=e^{-\omega/\alpha}$ & $1.8\times10^{-4}$ & $\phi_0(0)/\psi_S(0)$ & $8.6$\\
-fast wiggle period & $\approx3.4$ & D: max $|\langle x\rangle_\text{PI}-\langle x\rangle_\text{eig}|$ & $0.075$ at $t=128.7$\\
-B(i) digits vs.\ table & 4--5 & error ratio when $\Delta x\to\Delta x/2$ & $4.00$\\
+$x_{\min}$ / $V(0)$ & $1.7455$ / $3.047$ & $\omega$, $\Delta x$, $\epsilon$ & $2.828$, $0.01333$, $0.02454$\\
+$E_0$ / $E_1$ / $\Delta E$ & $1.29244$ / $1.34016$ / $0.047718$ & $\pi/\Delta E$ / $2\pi/\Delta E$ & $65.84$ / $131.67$\\
+A: $t_\text{tunnel}$, $\langle x\rangle$ & $63.96$, $-1.717$ & two-state weight of $\psi_+$ & $94.7\%$\\
+$x_{01}$ & $1.550$ & fast period & $\approx3.4$\\
+$E_S$ / $E_A$ & $1.4431$ / $1.4468$ & harmonic gap (error) & $0.00369$ ($92\%$)\\
+$S$ & $1.8\times10^{-4}$ & $\phi_0(0)/\psi_S(0)$ & $8.6$\\
+B(i) digits / error ratio & 4--5 / $4.00$ & D max discrepancy & $0.075$ at $t=128.7$\\
 \bottomrule
 \end{tabular}
 
-% =====================================================================
-\section*{2. Q1 --- Walk-through script (in notebook order)}
+\section{Q1 --- walk-through script}
 \begin{enumerate}[label=\textbf{\arabic*.}]
-\item \textbf{Setup cell.} Parameters ($\alpha$ from TSN, $N_D$, $\Delta x$, $\epsilon$, $x_{\min}$, $\omega$). \code{V} (compiled with \code{@njit} so the kernel builder can call it), \code{integrate} $=\Delta x\sum_i f_i$ over \emph{all} 601 points (every integral uses this), \code{normalize}, the Gaussians $\psi_\pm$, and \code{plot\_mean} for the $\langle x\rangle(t)$ plots.
-\item \textbf{A(i) --- path integral.} \code{build\_kernel}: the $601\times601$ matrix $\tilde K_{ij}=\exp i[(x_i-x_j)^2/2\epsilon-\epsilon V(\tfrac{x_i+x_j}{2})]$, built \emph{once} because $V$ does not depend on time. \code{evolve}: one step $=\Delta x\,\tilde K\psi$ (the integral $\int K\psi\,dx_a$ as a Riemann sum), then renormalize. Then $\langle x\rangle=\Delta x\sum x_i|\psi_i|^2$, $t_\text{tunnel}$ = \code{argmin} over a run of $48\pi$, and \code{x\_mean\_pi} at steps $0,64,\dots,2048$.
-\item \textbf{B --- eigenstates.} \code{make\_hamiltonian}: sets $\Delta x=L/N_D$ and builds the sparse tridiagonal $H$ (diagonal $1/\Delta x^2+V$, off-diagonals $-1/2\Delta x^2$). \code{lowest\_two}: \code{eigsh(H, k=2, sigma=0)} (shift-invert), sorts, divides by $\sqrt{\Delta x}$, and fixes the signs. B(i) compares with the literature at $\alpha=0.4,0.6$; B(ii) reruns on three grids; B(iii) plots.
-\item \textbf{C --- harmonic estimate.} $\psi_{S,A}=(\psi_+\pm\psi_-)/\sqrt2$; the energies are Rayleigh quotients $\psi^TH\psi/\psi^T\psi$ with B's matrix (denominators kept); then the log plot of $|\psi_S|$ vs.\ $|\phi_0|$.
-\item \textbf{D --- two methods.} Same start $(\phi_0+\phi_1)/\sqrt2$. Exact: $\langle x\rangle=x_{01}\cos\Delta E t$ (no time stepping). Path integral: reuses \code{evolve} and \code{K\_tilde} from A. Then the difference curve and density snapshots.
-\item \textbf{A(ii) at the end} (needs $\phi_{0,1}$ and D's curve), then \code{results.json}.
+\item \textbf{Setup:} parameters, \code{V} (\code{@njit}), \code{integrate} ($\Delta x\sum$ over all points), \code{normalize}, $\psi_\pm$, \code{plot\_mean}.
+\item \textbf{A(i):} \code{build\_kernel} makes $\tilde K$ once; \code{evolve} does $\Delta x\tilde K\psi$ and renormalizes; $\langle x\rangle=\Delta x\sum x|\psi|^2$; \code{argmin} gives $t_\text{tunnel}$; export at $n=0,64,\dots,2048$.
+\item \textbf{B:} \code{make\_hamiltonian} sets $\Delta x$ and builds the sparse tridiagonal $H$; \code{lowest\_two} runs shift-invert \code{eigsh}, divides by $\sqrt{\Delta x}$ and fixes the signs; B(i) literature check, B(ii) three grids, B(iii) plot.
+\item \textbf{C:} $\psi_{S,A}$; Rayleigh quotients with B's $H$ (denominators kept); log plot.
+\item \textbf{D:} $(\phi_0+\phi_1)/\sqrt2$; exact $x_{01}\cos\Delta Et$ vs.\ the same \code{evolve}; difference and snapshots.
+\item \textbf{A(ii)} at the end (needs B and D), then \code{results.json}.
 \end{enumerate}
-
 \begin{keybox}{Non-obvious details (have 2--3 ready)}
 \begin{itemize}
-\item \textbf{$\Delta x$ in a step:} $\psi(x_b)=\int K\psi\,dx_a\to\Delta x\sum_j K_{ij}\psi_j$. The same $\Delta x$ appears in the norm and in $\langle x\rangle$.
-\item \textbf{Renormalizing every step:} the dropped prefactor $A=1/\sqrt{2\pi i\epsilon}$ is a constant. Without it, each step multiplies $\psi$ by $\approx\sqrt{2\pi\epsilon}=0.39$ (checked numerically), so $\psi$ would underflow to $0$ within $\sim\!760$ steps.
-\item \textbf{$\sqrt{\Delta x}$ in B:} \code{eigsh} returns $\sum|v_i|^2=1$; a wave function needs $\Delta x\sum|\phi_i|^2=1$, so $\phi=v/\sqrt{\Delta x}$.
-\item \textbf{Signs:} eigenvector signs are arbitrary. I force $\phi_0>0$ and the right lobe of $\phi_1>0$, so $(\phi_0+\phi_1)/\sqrt2$ starts in the \emph{right} well and $x_{01}>0$.
-\item \textbf{\code{sigma=0}:} shift-invert finds the eigenvalues closest to $\sigma$; $H$ is positive definite ($V\ge0$), so $0$ lies below all of them.
-\item \textbf{\code{argmin} over a run of $48\pi$:} this is valid only because $2\pi/\Delta E<48\pi<3\pi/\Delta E$ (checked in B(ii)): the run contains exactly one major minimum. Zero crossings are unreliable, because the wiggles cross zero several times.
-\item \textbf{Max discrepancy only over $n\epsilon\le T$}, because the last step slightly exceeds $T$.
+\item \textbf{$\Delta x$ in a step:} $\int K\psi\,dx_a\to\Delta x\sum_jK_{ij}\psi_j$; the same $\Delta x$ is in the norm and in $\langle x\rangle$.
+\item \textbf{Renormalizing:} the dropped $A$ is a constant; without renormalizing, $\psi$ shrinks by $0.39$ per step and underflows in $\sim760$ steps.
+\item \textbf{$\sqrt{\Delta x}$:} \code{eigsh} vectors have $\sum|v|^2=1$; wave functions need $\Delta x\sum|\phi|^2=1$.
+\item \textbf{Signs:} arbitrary from the solver; fixed so that D's state starts in the right well.
+\item \textbf{\code{sigma=0}:} $H$ is positive definite, so $0$ lies below every $E_n$.
+\item \textbf{\code{argmin}:} valid because $2\pi/\Delta E<48\pi<3\pi/\Delta E$ (checked in B(ii)).
+\item \textbf{Max discrepancy over $n\epsilon\le T$ only:} the last step overshoots $T$.
 \end{itemize}
 \end{keybox}
 
-% =====================================================================
-\section*{3. Q2 --- ``What if the assignment changed?''}
+\section{Q2 --- ``What if the assignment changed?''}
 {\small
 \begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{2.3cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
 \toprule
 \textbf{Change} & \textbf{Where in my code / what stays} & \textbf{Prediction}\\
 \midrule
-$\alpha$ larger (e.g.\ $0.5$) & Only \code{ALPHA} in Setup; everything else follows: $x_{\min}$, $\psi_\pm$, the potential phases of $\tilde K$ (anti-diagonals), the diagonal of $H$. \textbf{Dependent:} \code{T\_RUN}${}=48\pi$ is hard-coded, so recheck it (the B(ii) check would print \code{False}). & Wells move in ($x_{\min}=1.41$), barrier drops ($2.0$), so $\Delta E$ grows sharply ($0.231$) and $t_\text{tunnel}\approx13.6$. At $\alpha=0.5$, $48\pi$ spans $\sim5$ periods, so \code{argmin} could pick a later minimum: restrict it to $t<3\pi/\Delta E$.\\
-$\alpha$ smaller ($0.3$) & same & Higher barrier ($3.33$), $\Delta E=0.030$, $t_\text{tunnel}\approx105$: need a longer run ($2\pi/\Delta E\approx210>48\pi$).\\
-Start position $x_c\neq x_{\min}$ & Only the initial state (\code{psi\_plus} center). $\tilde K$, $H$, the grid and C/D stay the same. & The packet is displaced from the well's ground state, so it sloshes inside the well with a large fast oscillation of $\langle x\rangle$ (period $\approx3.4$, set by the next level spacing $E_2-E_{0,1}\approx1.8$, not $2\pi/\omega$), on top of the slow tunneling.\\
-Start at $x_c=0$ & same & The state is even, so it contains only even eigenstates and $\langle x\rangle(t)=0$ for all $t$; the density spreads symmetrically into both wells. No tunneling oscillation.\\
-Start in left well ($\psi_-$) & same & Mirror image: $\langle x\rangle_\text{left}(t)=-\langle x\rangle_\text{right}(t)$, same $t_\text{tunnel}$.\\
-Finer grid ($N_D\uparrow$) & \code{ND} in Setup: $\Delta x$, $x$, $\tilde K$ (every entry), $H$, $\psi_\pm$ on the new grid. Time steps and \code{N\_EXPORT} stay. & B energies converge as $\Delta x^2$ (error $\div4$ per halving). A/D change little (their error is set by $\epsilon$). Cost: $\tilde K$ memory and each step scale as $N_D^2$.\\
-Coarser grid & same & The path integral breaks once $N_D\lesssim415$ (needs $2\pi\epsilon>L\Delta x$: ghost paths). B just loses accuracy.\\
-Larger box, same $\Delta x$ & \code{BOXSIZE} and \code{ND} together. & B: energies change by only $\sim10^{-9}$ (walls irrelevant). \textbf{PI breaks}: $L=12$ gives $L\Delta x=0.160>2\pi\epsilon=0.154$; I checked, and the $\langle x\rangle$ error becomes $\sim1.5$.\\
-Time step $\epsilon$ & \code{DELTAT}: $\tilde K$ (kinetic and potential phases), the number of steps. \textbf{Dependent:} \code{N\_EXPORT} assumes $\epsilon=\pi/128$ ($n=64k$); use $n=\mathrm{round}(t_k/\epsilon)$. B and D's exact formula are unchanged. & PI error $\propto\epsilon^2$. \textbf{But} halving $\epsilon$ alone at fixed $\Delta x$ violates $2\pi\epsilon>L\Delta x$ (garbage), so halve $\Delta x$ too: then the D discrepancy drops $4\times$ ($0.075\to0.019$, checked).\\
-Initial state $\phi_0$ only & initial vector & Stationary: $\langle x\rangle=0$ and the density never changes.\\
-Mass $m$ & kinetic phase $m(x_b-x_a)^2/2\epsilon$; kinetic part of $H$ $\propto1/m$ & Heavier particle: decay under the barrier $\kappa=\sqrt{2m(V-E)}$ is larger, so $\Delta E$ shrinks exponentially and tunneling is much slower.\\
+$\alpha$ larger (e.g.\ $0.5$) & Only \code{ALPHA}; everything follows: $x_{\min}$, $\psi_\pm$, the potential phases of $\tilde K$ (anti-diagonals), the diagonal of $H$. \textbf{Dependent:} \code{T\_RUN}${}=48\pi$ is hard-coded (the B(ii) check would print \code{False}). & Wells move in ($x_{\min}=1.41$), barrier drops ($2.0$), $\Delta E=0.231$, $t_\text{tunnel}\approx13.6$. $48\pi$ spans $\sim5$ periods, so restrict \code{argmin} to $t<3\pi/\Delta E$.\\
+$\alpha$ smaller ($0.3$) & same & Barrier $3.33$, $\Delta E=0.030$, $t_\text{tunnel}\approx105$; need a longer run ($2\pi/\Delta E\approx210$).\\
+Start $x_c\neq x_{\min}$ & Only the initial state; $\tilde K$, $H$, the grid and C/D stay the same. & Large intra-well sloshing (period $\approx3.4$, set by $E_2-E_{0,1}\approx1.8$, not $2\pi/\omega$) on top of the tunneling.\\
+Start at $x_c=0$ & same & Even state: only even eigenstates, $\langle x\rangle\equiv0$, symmetric spreading, no tunneling oscillation.\\
+Start in left well & same & Mirror image: $-\langle x\rangle(t)$, same $t_\text{tunnel}$.\\
+Finer grid & \code{ND}: $\Delta x$, $x$, $\tilde K$, $H$, $\psi_\pm$; time grid and \code{N\_EXPORT} stay. & B error $\div4$ per halving; A/D barely change (their error is set by $\epsilon$); cost $\propto N_D^2$.\\
+Coarser grid & same & PI breaks once $N_D\lesssim415$ ($2\pi\epsilon>L\Delta x$). B just loses accuracy.\\
+Larger box, same $\Delta x$ & \code{BOXSIZE} and \code{ND} together & B: $\sim10^{-9}$ change. \textbf{PI breaks} ($0.160>0.154$; error $\sim1.5$, checked).\\
+Time step $\epsilon$ & \code{DELTAT}: $\tilde K$, step counts. \textbf{Dependent:} \code{N\_EXPORT} assumes $\epsilon=\pi/128$; use $n=\mathrm{round}(t_k/\epsilon)$. B and D(i) unchanged. & PI error $\propto\epsilon^2$, but halving $\epsilon$ alone breaks the kernel; halve $\Delta x$ too ($0.075\to0.019$).\\
+Initial state $\phi_0$ & initial vector & Stationary: $\langle x\rangle=0$, density constant.\\
+Mass $m$ & kinetic phase $m(x_b-x_a)^2/2\epsilon$; kinetic part of $H\propto1/m$ & $\kappa=\sqrt{2m(V-E)}$ grows, so $\Delta E$ drops exponentially: much slower tunneling.\\
 \bottomrule
 \end{tabularx}}
-
-\begin{trapbox}{Traps worth saying out loud (they show you understand the numerics)}
-(1) $\epsilon$ cannot be reduced alone: aliasing at $k^*=\pi/\kappa$ creates ``ghost'' jumps of $k^*\Delta x$; the requirement is $k^*>N_D\Leftrightarrow2\pi\epsilon>L\Delta x$ (now $0.154>0.107$).
-(2) A larger box at the same $\Delta x$ also violates it.
-(3) \code{T\_RUN} and \code{N\_EXPORT} are hard-coded and depend on $\alpha$ and $\epsilon$.
+\begin{trapbox}{Traps worth saying out loud}
+(1) $\epsilon$ cannot be reduced alone ($2\pi\epsilon>L\Delta x$). (2) A larger box at fixed $\Delta x$ violates the same condition. (3) \code{T\_RUN} and \code{N\_EXPORT} are hard-coded and depend on $\alpha$ and $\epsilon$.
 \end{trapbox}
 
-% =====================================================================
-\section*{4. Physics by problem}
-
-\subsection*{A --- Path-integral tunneling}
-\begin{gather*}
-\psi(x_b,t+\epsilon)=\int K\psi\,dx_a,\qquad K\approx A\,e^{iS},\quad S\approx\frac{(x_b-x_a)^2}{2\epsilon}-\epsilon V\!\left(\tfrac{x_a+x_b}{2}\right),\\
-\langle x\rangle(t)=\sum_{m,n}c_mc_n\,x_{mn}\cos\big((E_n-E_m)t\big).
-\end{gather*}
-\q{Why a straight path and the midpoint $V$?}\ans For small $\epsilon$ the dominant path is the classical one, which is a straight line over a short time; the midpoint rule integrates $V$ along it. It is time-symmetric, which makes the error $\mathcal O(\epsilon^2)$.
-
-\q{Why is $\tilde K$ dense while $H$ is tridiagonal?}\ans $\tilde K\approx e^{-iH\epsilon}$; exponentiating a local operator couples all points. In practice only jumps of $\sim\sqrt{2\pi\epsilon}\approx0.4$ (about 29 grid points) add coherently; longer jumps oscillate and cancel. $|\tilde K_{ij}|=1$ and $\tilde K=\tilde K^T$ (but not Hermitian).
-
-\q{Describe the time evolution physically.}\ans The packet sits in the right well with energy $\approx1.3$, below the barrier ($3.05$), so classically it is trapped. Quantum mechanically it is mostly $\phi_0+\phi_1$, whose relative phase $e^{-i\Delta Et}$ turns the sum (right well) into the difference (left well) after $\pi/\Delta E$ and back after $2\pi/\Delta E$: probability \emph{leaks through} the barrier, $P_\text{right}(t)\approx\cos^2(\Delta Et/2)$. On top of that, the fast wiggles (period $\approx3.4$) are the packet sloshing \emph{inside} a well, because the Gaussian is not exactly the well's ground state ($5.3\%$ is in higher states).
-
-\q{Why is the measured $t_\text{tunnel}=63.96$ and not $\pi/\Delta E=65.84$?}\ans The fast oscillation adds to the slow one; the deepest point is where a fast low point coincides with the slow minimum. D's pure two-state run gives exactly $\pi/\Delta E$, so the shift is physics (higher states), not numerical error.
-
-\subsection*{B --- Eigenstates}
-\[
-\frac{\phi_{i+1}-2\phi_i+\phi_{i-1}}{\Delta x^2}=\phi''+\frac{\Delta x^2}{12}\phi''''+\dots,\qquad
-H=\tfrac{1}{2\Delta x^2}\mathrm{tridiag}(-1,2,-1)+\mathrm{diag}(V),\qquad
-(H-\sigma)^{-1}\phi_n=\frac{\phi_n}{E_n-\sigma}.
-\]
-\q{Where are the boundary conditions?}\ans In the first and last rows: the outside neighbor is dropped, which means $\phi=0$ one step \emph{outside} the box (hard walls at $\pm(4+\Delta x)$).
-
-\q{Why does $\phi_0$ have no node, and why is $E_1>E_0$?}\ans $V$ is even, so $H$ commutes with parity and every eigenstate is even or odd. The ground state is nodeless, hence even. $\phi_1$ is odd and must vanish at $0$, which costs extra curvature (kinetic energy), hence slightly higher energy. The gap is small because both look the same inside each well.
-
-\q{Why are your energies slightly too low, and what limits agreement with the paper?}\ans The three-point Laplacian underestimates the kinetic energy by $\frac{\Delta x^2}{24}\langle p^4\rangle\approx4\times10^{-5}$. The errors are all negative; halving $\Delta x$ divides them by $4.00$ (second order); the box changes energies by only $10^{-9}$. So the grid spacing limits the agreement (4--5 digits).
-
-\q{Why is $\Delta E$ better converged than $E_0,E_1$?}\ans Both energies shift by similar same-sign amounts ($\approx2.6\times10^{-5}$), which cancel in the difference ($1.4\times10^{-6}$).
-
-\subsection*{C --- Harmonic approximation}
-\begin{gather*}
-E[\psi]=\frac{\langle\psi|H|\psi\rangle}{\langle\psi|\psi\rangle}\ge E_\text{lowest},\qquad
-S=e^{-\omega/\alpha},\qquad
-E_S=\frac{h_d+h_o}{1+S},\quad E_A=\frac{h_d-h_o}{1-S},\\
-\Delta E_\text{harm}=\frac{6S}{1-S^2}\Big(\frac1\alpha+\frac1\omega\Big),\qquad
-\Delta E\approx\phi_0(0)\,\phi_1'(0).
-\end{gather*}
-\q{Why are both signed errors positive?}\ans The variational principle: $E_S\ge E_0$; and $\psi_A$ is odd, so it contains only odd states and $E_A\ge E_1$.
-
-\q{Why keep the denominators?}\ans $\psi_\pm$ overlap ($S=1.8\times10^{-4}$), so $\|\psi_{S,A}\|^2=1\pm S$. Dropping them shifts $E$ by $\sim ES\approx2\times10^{-4}$: ten times B's grid error and $5\%$ of the harmonic gap.
-
-\q{Why are the energies off by $\sim10\%$ but the gap by $92\%$?}\ans The energies come mainly from the wells, where the parabola fits well, and the error is second order. The gap is a tiny difference set by the amplitude \emph{in the barrier}: the parabola gives $V_+(0)=4/\alpha=12.2$ versus the true $3.05$, so the Gaussian decays too fast and $\psi_S(0)$ is $8.6\times$ too small. Arithmetically, $\delta_A-\delta_S=-0.044$ is comparable to $\Delta E=0.048$ itself.
-
-\subsection*{D --- Two methods}
-\[
-|\psi|^2=\tfrac12\big[\phi_0^2+\phi_1^2+2\phi_0\phi_1\cos\Delta Et\big]
-\;\Rightarrow\;\langle x\rangle=x_{01}\cos\Delta Et\quad(x_{00}=x_{11}=0\text{ by parity}),\qquad t_\text{tunnel}=\pi/\Delta E .
-\]
-\q{Where do normalization and symmetry enter?}\ans The $1/\sqrt2$ gives the $\tfrac12$; orthonormality keeps the norm at 1 (the cross term integrates to 0). Parity: $\phi_n^2$ is even, so $x_{nn}=0$; $\phi_0\phi_1$ is odd, so $x_{01}\ne0$.
-
-\q{Why should the two methods agree, and why don't they exactly?}\ans The state contains only $\phi_0,\phi_1$, so an exact propagator gives a pure cosine. $\Delta x\tilde K$ only approximates $e^{-iH\epsilon}$: the path integral effectively has slightly different eigenstates and energies, so the state leaks into higher states (wiggles) and the slow phase drifts. The error accumulates, so it peaks late ($0.075$ at $t=128.7$).
-
-\q{Targeted check?}\ans Halve $\epsilon$ \emph{and} $\Delta x$ together; expect a $4\times$ smaller discrepancy (second order). Halving $\Delta x$ alone changes nothing; halving $\epsilon$ alone breaks the kernel.
-
-% =====================================================================
-\section*{5. Cross-cutting conceptual questions}
-\q{If $\alpha$ changes, what happens physically to the wave function, in position and in momentum?}\ans $V''(x_{\min})=8$ for \emph{every} $\alpha$, so each well has the same local curvature: the same Gaussian with $\Delta x=1/\sqrt{2\omega}=0.42$ and $\Delta p=\sqrt{\omega/2}=1.19$ ($\Delta x\Delta p=\tfrac12$, minimum uncertainty). What changes is \emph{where} the wells are ($x_{\min}=1/\sqrt\alpha$) and the barrier ($1/\alpha$). Larger $\alpha$ gives closer wells and a lower, thinner barrier. Under the barrier the local ``momentum'' is imaginary, $\kappa(x)=\sqrt{2(V-E)}$, and the wave decays like $e^{-\int\kappa\,dx}$; a smaller barrier means less decay, more amplitude at $x=0$, a larger $\Delta E$ and faster tunneling:
+\section{Conceptual questions}
+\q{If $\alpha$ changes, what happens physically to the wave function, in position and in momentum?}\ans $V''(x_{\min})=8$ for every $\alpha$, so each well holds the same Gaussian ($\Delta x=0.42$, $\Delta p=1.19$). $\alpha$ moves the wells ($1/\sqrt\alpha$) and sets the barrier ($1/\alpha$). Under the barrier the momentum is imaginary, $\kappa=\sqrt{2(V-E)}$, and $\psi\sim e^{-\int\kappa\,dx}$. Larger $\alpha$ means a lower, thinner barrier, more amplitude at $0$, a larger $\Delta E$ and faster tunneling:
 \begin{center}\small
 \begin{tabular}{@{}cccccc@{}}\toprule
-$\alpha$ & $x_{\min}$ & $V(0)$ & $\Delta E$ & $\pi/\Delta E$ & weight of $\psi_+$ in $\phi_{0,1}$\\\midrule
+$\alpha$ & $x_{\min}$ & $V(0)$ & $\Delta E$ & $\pi/\Delta E$ & two-state weight of $\psi_+$\\\midrule
 0.30 & 1.83 & 3.33 & 0.030 & 105.2 & 95.4\%\\
 \textbf{0.3282} & \textbf{1.75} & \textbf{3.05} & \textbf{0.048} & \textbf{65.8} & \textbf{94.7\%}\\
 0.40 & 1.58 & 2.50 & 0.112 & 27.9 & 93.0\%\\
@@ -168,29 +588,38 @@ $\alpha$ & $x_{\min}$ & $V(0)$ & $\Delta E$ & $\pi/\Delta E$ & weight of $\psi_+
 0.60 & 1.29 & 1.67 & 0.359 & 8.8 & 90.6\%\\\bottomrule
 \end{tabular}
 \end{center}
-$\Delta E$ grows roughly exponentially as the barrier drops (WKB: $\Delta E\propto e^{-\int\kappa\,dx}$). The harmonic Gaussian also gets worse for larger $\alpha$ (lower two-state weight, so bigger fast wiggles), because the wells become more anharmonic relative to the barrier.
+Larger $\alpha$ also makes the wells more anharmonic ($4\sqrt\alpha u^3+\alpha u^4$), so the Gaussian is a worse start and the fast wiggles are bigger.
 
-\q{Momentum during tunneling?}\ans Inside each well the momentum spread is $\sim1.2$; in the barrier there is no real classical momentum ($E<V$) and the amplitude decays exponentially. The $x_{01}\cos\Delta Et$ motion is not a particle rolling over the barrier: it is interference between two stationary states.
+\q{Describe the time evolution physically.}\ans The packet starts trapped in the right well ($E<V(0)$). It is mostly $\phi_0+\phi_1$, and the relative phase $e^{-i\Delta Et}$ turns it into $\phi_0-\phi_1$ (left well) at $\pi/\Delta E$ and back at $2\pi/\Delta E$: $P_\text{right}\approx\cos^2(\Delta Et/2)$. This is interference of two stationary states, not motion over the barrier. Fast wiggles are the packet sloshing inside a well.
 
-\q{Why exactly two states, and why is $\Delta E$ so small?}\ans The single-well ground state appears twice (left and right). The barrier couples them weakly, splitting them into an even and an odd combination. The splitting is set by the overlap in the barrier, which is exponentially small.
+\q{Why is $t_\text{tunnel}=63.96$ and not $65.84$?}\ans A fast low point adds to the slow minimum. D's two-state run with the same code gives $\pi/\Delta E$, so the shift is physics, not numerics.
 
-\begin{keybox}{Sanity checks (be ready to name 3 and say what they would show)}
+\q{Why is $\tilde K$ dense and $H$ tridiagonal?}\ans $\tilde K\approx e^{-iH\epsilon}$; exponentiating a local operator couples all points, though only jumps of $\sim0.4$ add coherently.
+
+\q{Why are your energies slightly too low, and why is $\Delta E$ better converged?}\ans The three-point kinetic term is low by $\frac{\Delta x^2}{24}\langle p^4\rangle\approx4\times10^{-5}$; the same-sign errors cancel in the difference.
+
+\q{Why does the harmonic gap fail?}\ans The gap is set by the amplitude at $x=0$; the parabola overestimates the barrier $4\times$, so $\psi_S(0)$ is $8.6\times$ too small. The energies are set by the wells, and their error is second order.
+
+\q{Why do the two methods in D disagree, and how would you test it?}\ans Time-step error of the short-time kernel ($\propto\epsilon^2$). Halve $\epsilon$ and $\Delta x$ together and expect $4\times$ smaller; $\epsilon$ alone breaks it.
+
+\section{Sanity checks}
+\begin{keybox}{Name 3 and say what they would show}
 \begin{itemize}
-\item \textbf{Norm and symmetry:} $\Delta x\sum|\psi|^2=1$; $\tilde K=\tilde K^T$, $|\tilde K_{ij}|=1$; $V(\pm x_{\min})=0$, $V''=8$.
-\item \textbf{Start and mirror:} $\langle x\rangle(0)=x_{\min}$; starting from $\psi_-$ gives $-\langle x\rangle(t)$; starting from the even state at $x=0$ gives $\langle x\rangle\equiv0$.
-\item \textbf{Eigenstates:} orthonormal; $\phi_0$ even and nodeless, $\phi_1$ odd; $x_{00}=x_{11}\approx10^{-12}$; Rayleigh quotient of $\phi_n$ equals $E_n$.
-\item \textbf{Literature and convergence:} 4--5 digits vs.\ Banerjee \& Bhatnagar; error ratio 4 under $\Delta x\to\Delta x/2$ (second order); box-size independence.
-\item \textbf{Analytic checks:} $E_S\ge E_0$, $E_A\ge E_1$; grid $S$ and $\Delta E_\text{harm}$ match the closed forms.
-\item \textbf{Cross-method:} D's path integral vs.\ the exact $x_{01}\cos\Delta Et$; the density at $t_\text{tunnel}$ is the mirror image of $t=0$.
-\item \textbf{Limits I could run:} $V=0$ gives free Gaussian spreading, $\sigma(t)^2=\sigma_0^2+t^2/(4\sigma_0^2)$; a single harmonic well gives a displaced packet oscillating with period $2\pi/\omega$ (Assignment 1); in either case energy $\langle H\rangle$ should stay constant.
+\item Norm $=1$; $\tilde K=\tilde K^T$, $|\tilde K_{ij}|=1$; $V(\pm x_{\min})=0$, $V''=8$; $\langle x\rangle(0)=x_{\min}$.
+\item Mirror start gives $-\langle x\rangle(t)$; an even start gives $\langle x\rangle\equiv0$.
+\item Eigenstates orthonormal, $\phi_0$ even/nodeless, $\phi_1$ odd; $x_{00}=x_{11}\approx0$; Rayleigh quotient of $\phi_n$ equals $E_n$.
+\item 4--5 digits vs.\ the literature; error ratio 4 under $\Delta x/2$; box independence.
+\item $E_S\ge E_0$, $E_A\ge E_1$; grid $S$ and $\Delta E_\text{harm}$ match the closed forms.
+\item D: PI vs.\ $x_{01}\cos\Delta Et$; the density at $t_\text{tunnel}$ mirrors $t=0$.
+\item Limits: $V=0$ gives free spreading $\sigma^2(t)=\sigma_0^2+t^2/4\sigma_0^2$; a single harmonic well gives period $2\pi/\omega$; $\langle H\rangle$ should stay constant.
 \end{itemize}
 \end{keybox}
 
-\section*{6. Last-minute checklist}
+\section{Last-minute checklist}
 \begin{itemize}
 \item Notebook open, \textbf{Restart $\to$ Run All} done once (about a minute: Numba compiles first), AI tools closed.
-\item Know where each stage is: Setup $\to$ A(i) kernel/evolve $\to$ B \code{make\_hamiltonian}/\code{lowest\_two} $\to$ C Rayleigh quotients $\to$ D exact vs.\ PI $\to$ A(ii) $\to$ \code{results.json}.
-\item For Q2, always say three things: \emph{what changes}, \emph{what stays}, \emph{what I predict} (plus the dependent quantity: \code{T\_RUN}, \code{N\_EXPORT}, the ghost condition).
+\item Locate instantly: Setup $\to$ \code{build\_kernel}/\code{evolve} $\to$ \code{make\_hamiltonian}/\code{lowest\_two} $\to$ Rayleigh quotients $\to$ D exact vs.\ PI $\to$ A(ii) $\to$ \code{results.json}.
+\item Q2 answer = \emph{what changes} + \emph{what stays} + \emph{prediction} (+ dependent quantity: \code{T\_RUN}, \code{N\_EXPORT}, $2\pi\epsilon>L\Delta x$).
 \end{itemize}
 
 \end{document}
