@@ -180,8 +180,9 @@ e^{4i\kappa}e^{-i\epsilon V(x_1)} & e^{i\kappa}e^{-i\epsilon V(x_{3/2})} & e^{-i
 \end{itemize}
 
 \subsection{Algorithm and code}
+Here $\boldsymbol\chi$ is just the un-normalized vector after one step (not an eigenstate; $\phi_n$ always means the eigenstates of B):
 \[
-\boldsymbol\phi=\Delta x\,\tilde K\boldsymbol\psi^{(n)},\qquad\boldsymbol\psi^{(n+1)}=\frac{\boldsymbol\phi}{\sqrt{\Delta x\sum_i|\phi_i|^2}},\qquad\langle x\rangle(n\epsilon)=\Delta x\sum_ix_i\,|\psi_i^{(n)}|^2 .
+\boldsymbol\chi=\Delta x\,\tilde K\boldsymbol\psi^{(n)},\qquad\boldsymbol\psi^{(n+1)}=\frac{\boldsymbol\chi}{\sqrt{\Delta x\sum_i|\chi_i|^2}},\qquad\langle x\rangle(n\epsilon)=\Delta x\sum_ix_i\,|\psi_i^{(n)}|^2 .
 \]
 \begin{lstlisting}[firstnumber=1]
 @njit
