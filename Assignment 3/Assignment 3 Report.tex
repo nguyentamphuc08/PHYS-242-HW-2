@@ -25,15 +25,14 @@
 
 \newtcolorbox{statement}{colback=gray!6,colframe=gray!55!black,boxrule=0.5pt,
   left=6pt,right=6pt,top=4pt,bottom=4pt}
-\newtcolorbox{codebox}{colback=yellow!6,colframe=orange!60!black,boxrule=0.5pt,
-  left=6pt,right=6pt,top=4pt,bottom=4pt,before upper={\textit{To be added once the code is written and passes the validation tests.}\par\smallskip}}
-
 \newtcolorbox{nocodebox}{colback=yellow!6,colframe=orange!60!black,boxrule=0.5pt,left=6pt,right=6pt,top=4pt,bottom=4pt}
 
 \lstset{language=Python,basicstyle=\ttfamily\footnotesize,keywordstyle=\color{blue!60!black}\bfseries,
   commentstyle=\color{green!40!black},stringstyle=\color{red!50!black},frame=single,rulecolor=\color{gray!60},
   backgroundcolor=\color{gray!5},breaklines=true,columns=fullflexible,showstringspaces=false,
-  numbers=left,numberstyle=\tiny\color{gray},xleftmargin=1.5em,framexleftmargin=1.5em}
+  numbers=left,numberstyle=\tiny\color{gray},numbersep=6pt,xleftmargin=2.6em,framexleftmargin=2.2em,
+  literate={~}{{\textasciitilde}}1,
+  basicstyle=\ttfamily\scriptsize,upquote=true}
 
 \title{PHYS 142/242 --- Assignment 3\\[3pt]
 \large MCMC, the 2D Ising Model, and Path-Integral Monte Carlo at Finite Temperature}
@@ -58,7 +57,8 @@ This report covers Problems 1A, 1B and 2A of Assignment 3. I did not attempt the
 $k$ & run \\
 \midrule
 0, 1 & Problem 1A: all-up start, random start \\
-$100+10\,i_T+c$ & Problem 1B: temperature index $i_T=0,\dots,15$, chain $c$ \\
+$100+10\,i_T+c$ & Problem 1B: production chain $c$ at temperature index $i_T=0,\dots,15$ \\
+$300+i_T$ & Problem 1B: pilot chain at temperature index $i_T$ \\
 200 & Problem 2A(i): production run \\
 $210+j$ & Problem 2A(i): short runs scanning the hit size $h$ \\
 900--999 & validation tests (not part of any reported result) \\
@@ -137,7 +137,7 @@ which gives $m_0(2)\approx0.911$. Lab 11 found $\langle|m|\rangle=0.907$ at $T=2
 \paragraph{Initial configurations and burn-in.}
 Burn-in means throwing away the start of the chain, to remove the transient left by an improbable initial configuration. Equivalently, one can start close to equilibrium \src{L14, Burn-in}. Lecture's autoregressive example, $x_{n+1}=rx_n+e_n$ with $r=0.98$, shows what the transient looks like: the memory of the start decays as $\rho(t)=r^t=e^{-t/\tau_\text{exp}}$, with $\tau_\text{exp}=-1/\ln r\approx50$ \src{L16, Burn-in}. This connects two things that look separate. The time the chain needs to forget its starting point is the same time that makes successive measurements correlated, so burn-in and error bars are controlled by the same timescale. An initial offset $\Delta$ decays like $\Delta\,e^{-t/\tau_\text{exp}}$. To shrink it below the size $s$ of the equilibrium fluctuations takes about $\tau_\text{exp}\ln(\Delta/s)$ sweeps, i.e.\ a few $\tau_\text{exp}$.
 
-This predicts very different burn-ins for the two starts. The \emph{all-up} start has $m=1$, only about $0.09$ above $m_0(2)$. That is the ``initial state near equilibrium'' of lecture, so its transient should be short. Lab 11's $T=2$ trace from the same start settles within a few tens of sweeps \src{Lab 11, Follow the magnetization}. The \emph{random} start has $m\approx0$, which looks nothing like a typical $T=2$ configuration. The lattice must grow aligned regions until one sign wins across the whole system, and chance decides which sign that is, so I expect a much longer burn-in that can end at either $+m$ or $-m$. \ext{a random start can also be trapped for a long time in a ``stripe'' configuration, two straight domain walls wrapping around the periodic lattice with $m\approx0$; this is not covered in the course, and if the trace stalls near $m=0$ I will look at the lattice.} I will choose each burn-in as the sweep after which the trace stays within the band of fluctuations seen later in the run. As a cross-check, I will compare the two starts after their burn-ins: both chains sample the same distribution, so their $|m|$ values must agree \src{Lab 14, slide 27: ``discard more warm-up and compare starts''}.
+This predicts very different burn-ins for the two starts. The \emph{all-up} start has $m=1$, only about $0.09$ above $m_0(2)$. That is the ``initial state near equilibrium'' of lecture, so its transient should be short. Lab 11's $T=2$ trace from the same start settles within a few tens of sweeps \src{Lab 11, Follow the magnetization}. The \emph{random} start has $m\approx0$, which looks nothing like a typical $T=2$ configuration. The lattice must grow aligned regions until one sign wins across the whole system, and chance decides which sign that is, so I expect a much longer burn-in that can end at either $+m$ or $-m$. \ext{a random start can also be trapped for a long time in a ``stripe'' configuration, two straight domain walls wrapping around the periodic lattice with $m\approx0$; this is not covered in the course, and if the trace stalls near $m=0$ I will look at the lattice.} To turn this into a rule that the code applies the same way to every chain, I let $t_\text{eq}$ be the first sweep at which the trace of $|m|$ reaches its equilibrium mean (the mean of the second half of the run), coming from the side it started on, and then wait $10\,\tau_\text{int}$ more sweeps: burn-in $=t_\text{eq}+10\,\tau_\text{int}$. Since $\tau_\text{int}\approx2\tau_\text{exp}$ \src{L19, Autocorrelation function}, the extra $10\,\tau_\text{int}\approx20\,\tau_\text{exp}$ shrinks whatever is left of the transient by $e^{-20}$. As a cross-check, I will compare the two starts after their burn-ins: both chains sample the same distribution, so their $|m|$ values must agree \src{Lab 14, slide 27: ``discard more warm-up and compare starts''}.
 
 \paragraph{How many steps: correlated samples and the error of the mean.}
 ``A good estimate of the magnetization'' needs an error bar, and lecture shows that the familiar $s/\sqrt N$ is wrong for a Markov chain. For the estimator $\bar f=\frac1N\sum_{i=1}^Nf_i$ of a measured quantity $f$ (here $|m|$),
@@ -159,7 +159,7 @@ Summing it all the way to $N$ gives exactly zero, because at large lags the esti
 \begin{equation}
 \sigma^2_{\bar f}(B)=\frac{1}{N_B(N_B-1)}\sum_{b=1}^{N_B}\big(F_b-\bar f\big)^2\qquad\src{L16, Blocking}.
 \end{equation}
-At $B=1$ this is the naive error. As $B$ doubles, the error grows and then levels off once $B\gg\tau_f$. The level part, the plateau, is the error bar, and on it $\big(\sigma_{\bar f}(B)/\sigma_{\bar f}(1)\big)^2\approx\tau_f$, so blocking also gives a second, independent estimate of $\tau_f$. If there is no plateau, the chain is too short. Lab 12's curves add one practical lesson: the last one or two points drop again when too few blocks remain, so the plateau must be read before them \src{Lab 12, The blocking curve; Block the magnetization}.
+At $B=1$ this is the naive error. As $B$ doubles, the error grows and then levels off once $B\gg\tau_f$. The level part, the plateau, is the error bar, and on it $\big(\sigma_{\bar f}(B)/\sigma_{\bar f}(1)\big)^2\approx\tau_f$, so blocking also gives a second, independent estimate of $\tau_f$. If there is no plateau, the chain is too short. Lab 12's curves add one practical lesson: the last one or two points drop again when too few blocks remain, so the plateau must be read before them \src{Lab 12, The blocking curve; Block the magnetization}. In the code I read it at $B^*$, the smallest power of 2 with $B^*\ge20\,\tau_\text{int}$, keeping at least 32 blocks. Neighboring blocks then share correlated sweeps over only about $\tau/B^*\approx5\%$ of their length, and 32 blocks keep the scatter of the error estimate itself near $1/\sqrt{2\cdot31}\approx13\%$ \src{Lab 12, The blocking curve; Lab 14, slide 24}.
 
 The course uses two conventions for this quantity. Lectures 16 and 19 define $\tau_\text{int}=1+2\sum_{t\ge1}\rho(t)$ \src{L16; L19, Autocorrelation function}. Lab 12 calls the same sum $g$ and defines $\tau_\text{int}=g/2$ \src{Lab 12, The effective number of measurements}. I use the lecture definition, because it is the one for which $\sigma^2_{\bar f}=\tau_\text{int}\mathrm{Var}[f]/N$ and $(\text{blocked}/\text{naive})^2=\tau_\text{int}$ hold without extra factors, and I state it wherever I report a value.
 
@@ -171,8 +171,8 @@ This answers the question of how many steps to run. The total must be at least $
 \item Initialize a $20\times20$ integer lattice, all $+1$ (run $k=0$) or $\pm1$ with probability $\tfrac12$ each (run $k=1$), with the generator seeded by $\code{SEED}+k$.
 \item One sweep is 400 repetitions of: choose a site $(i,j)$ uniformly; compute $h=\sigma_{i\pm1,j}+\sigma_{i,j\pm1}$ with periodic indices; set $\Delta E=2\sigma_{ij}h$; flip if $\Delta E\le0$ or a uniform random number is below $w(\Delta E)$; otherwise leave the lattice unchanged. Count accepted flips.
 \item After every sweep, record $m$. Store the history $m_0,m_1,\dots$, with $m_0$ the starting value.
-\item Plot $m$ against sweeps for both starts, with $\pm m_0(2)$ as reference lines, and choose each burn-in.
-\item On the post-burn-in $|m|$: compute $\hat\rho(t)$, $\tau_\text{int}$ (window $M\ge5\tau$), the naive error, and the blocking curve, then choose the total number of sweeps.
+\item Plot $m$ against sweeps for both starts (the first sweeps and the whole run), with $\pm m_0(2)$ as reference lines and each burn-in $t_\text{eq}+10\,\tau_\text{int}$ marked.
+\item On the post-burn-in $|m|$: compute $\hat\rho(t)$, $\tau_\text{int}$ (window $M\ge5\tau$), the naive error, and the blocking curve with its plateau at $B^*$. Compare the run length with $50\,\tau_\text{int}$ and with the length $\tau_\text{int}\mathrm{Var}[|m|]/\epsilon^2$ needed for a target error $\epsilon$.
 \end{enumerate}
 The inner loop is compiled with Numba's \code{@njit}, as in Lab 11 \src{Lab 11, Compile before the larger runs}.
 
@@ -185,14 +185,10 @@ Following the Lab 10 checklist \src{Lab 10, An auditing checklist}, the sampler 
 \end{itemize}
 
 \subsubsection*{Full code}
-\begin{codebox}
-This section will contain the complete, commented code for Problem 1A from \code{Assignment 3 Homework.ipynb}:
-\begin{itemize}
-\item the setup cell (imports, seeding with \code{rng\_for(k)}, and the shared error-analysis tools \code{autocorrelation}, \code{tau\_int}, \code{naive\_error}, \code{blocking\_curve}) and its validation on Lab 12's AR(1) toy model;
-\item \code{ising\_energy}, \code{flip\_energy}, \code{ising\_sweeps}, \code{initial\_spins}, \code{yang\_m0} and the Ising validation tests;
-\item the two $T=2$ runs, the trace plot, and the burn-in and error analysis.
-\end{itemize}
-\end{codebox}
+The complete code is in \code{Assignment 3 Homework.ipynb}. The listings below are copied from its cells by \code{export\_code.py}, so they always match the notebook. The first listing holds the setup and the shared error-analysis tools used by every problem, with their validation on Lab 12's AR(1) toy model. The second holds the Ising sampler, its validation tests, and the Problem 1A runs and analysis.
+
+\lstinputlisting[title={\code{code/setup\_and\_error\_tools.py}}]{code/setup_and_error_tools.py}
+\lstinputlisting[title={\code{code/problem\_1A.py}}]{code/problem_1A.py}
 
 % ---------------------------------------------------------------------
 \subsection{Problem 1B}
@@ -236,9 +232,9 @@ Third, the dynamics slow down near $T_c$. Large aligned patches rearrange slowly
 The problem asks for five choices. Each one follows from the analysis above.
 \begin{itemize}
 \item \textbf{Initial configuration: all spins up at every temperature.} Below $T_c$ this is the ``initial state near equilibrium'' of \src{L14, Burn-in}. Above $T_c$ the order of an all-up start is destroyed within about ten sweeps; Lab 11's $T=3.5$ trace drops to $m\approx0$ almost immediately \src{Lab 11, The histories matter too}. Using one start at every temperature also keeps the runs comparable. As a check above $T_c$, I can compare against random starts \src{Lab 14, slide 27}.
-\item \textbf{Burn-in: a multiple of the measured $\tau_\text{int}(T)$, and never less than the 1A value.} The transient decays as $e^{-t/\tau_\text{exp}}$ with $\tau_\text{int}\approx2\tau_\text{exp}$ \src{L16, Burn-in; L19, Autocorrelation function}. Discarding ten times $\tau_\text{int}$, about $20\,\tau_\text{exp}$, leaves a transient below $e^{-20}$ of its initial size, at a negligible cost compared with the run. Since $\tau_\text{int}(T)$ is not known in advance, I first run short pilot chains to estimate it and then set the production lengths.
-\item \textbf{Sweeps per chain: at least $50\,\tau_\text{int}(T)$, with a visible blocking plateau} \src{L16, Estimating $\tau_f$ in practice; Blocking}. The longest chains are needed near $T_c$.
-\item \textbf{Number of chains: several independent chains per temperature,} seeded $\code{SEED}+100+10\,i_T+c$. Independent chains give an error bar that does not rely on any autocorrelation estimate: the spread of the chain means divided by $\sqrt{n_\text{chains}}$, which is exactly the ``width of the heap of run means'' that defines a standard error \src{Lab 12, What an error bar means; The heap of run means}. Lecture uses 16 chains in the same way to check a blocked error \src{L19, Naive error bars}. Agreement between the two error bars is a test of both, and a chain that disagrees with the others reveals one that is stuck.
+\item \textbf{Burn-in: $t_\text{eq}+10\,\tau_\text{int}(T)$ from a pilot chain, and never less than the all-up burn-in of 1A.} The transient decays as $e^{-t/\tau_\text{exp}}$ with $\tau_\text{int}\approx2\tau_\text{exp}$ \src{L16, Burn-in; L19, Autocorrelation function}. Discarding ten times $\tau_\text{int}$, about $20\,\tau_\text{exp}$, leaves a transient below $e^{-20}$ of its initial size, at a negligible cost compared with the run. Since $\tau_\text{int}(T)$ is not known in advance, I first run a pilot chain of 50,000 sweeps at each temperature (seed $\code{SEED}+300+i_T$) to estimate it, and then set the production lengths.
+\item \textbf{Sweeps per chain: at least 50,000, and enough for 32 blocks of $B^*\ge20\,\tau_\text{int}(T)$.} The blocking plateau needs about $640\,\tau_\text{int}$ sweeps, far more than the $50\,\tau_\text{int}$ needed for a reliable $\tau$ \src{L16, Estimating $\tau_f$ in practice; Blocking}. Short chains underestimate $\tau$, so I size this with twice the pilot's $\tau_\text{int}$. The longest chains are needed near $T_c$.
+\item \textbf{Number of chains: four independent chains per temperature,} seeded $\code{SEED}+100+10\,i_T+c$. Independent chains give an error bar that does not rely on any autocorrelation estimate: the spread of the chain means divided by $\sqrt{n_\text{chains}}$, which is exactly the ``width of the heap of run means'' that defines a standard error \src{Lab 12, What an error bar means; The heap of run means}. Lecture uses 16 chains in the same way to check a blocked error \src{L19, Naive error bars}. Agreement between the two error bars is a test of both, and a chain that disagrees with the others reveals one that is stuck.
 \item \textbf{Thinning: none.} Lecture's advice is to keep every sweep after burn-in and obtain the error from $\tau_\text{int}$ or blocking \src{L18, MCMC considerations}. Thinning throws information away. Its only benefit would be memory, and storing one number per sweep is cheap: $10^6$ sweeps take 8 MB.
 \end{itemize}
 
@@ -250,18 +246,18 @@ From the three finite-lattice effects above, I expect a rounded rather than shar
 
 \paragraph{Computational steps.}
 \begin{enumerate}
-\item For each $T$ in $1.0,1.2,\dots,4.0$, run short pilot chains from all up and estimate $\tau_\text{int}(T)$ of $|m|$.
-\item Set the burn-in and the number of sweeps per chain from $\tau_\text{int}(T)$ as described above.
-\item Run $n_\text{chains}$ production chains per temperature with the 1A sampler. Store $|m|$ after every sweep beyond burn-in, and record the acceptance.
-\item For each $T$: compute $\langle|m|\rangle$, the standard deviation of $|m|$, the blocking error, the spread of the chain means, and $\tau_\text{int}$.
+\item For each $T$ in $1.0,1.2,\dots,4.0$, run a pilot chain of 50,000 sweeps from all up and estimate $\tau_\text{int}(T)$ of $|m|$ and the burn-in $t_\text{eq}+10\,\tau_\text{int}$.
+\item Set the number of kept sweeps per chain to $\max\big(50{,}000,\ 32B\big)$, with $B$ the smallest power of 2 $\ge20\cdot2\,\tau_\text{int}$ (pilot).
+\item Run four production chains per temperature with the 1A sampler. Store $|m|$ after every sweep beyond burn-in, and record the acceptance.
+\item For each $T$: compute $\langle|m|\rangle$ (mean of the chain means), the standard deviation of $|m|$, the blocking error of the average $\big(\sqrt{\sum_c\sigma_c^2}/4\big)$, the spread of the chain means divided by $\sqrt4$, and $\tau_\text{int}$. Check that every chain reaches $B^*\ge20\,\tau_\text{int}$ with 32 blocks.
 \item Plot $\langle|m|\rangle$ with the band and the error bars against $T$, together with $m_0(T)$ and $T_c$. Optionally also plot $\tau_\text{int}(T)$ to show critical slowing down.
 \item Write the 16 values of $\langle|m|\rangle$ to the field \code{m} of \code{results.json}.
 \end{enumerate}
 
 \subsubsection*{Full code}
-\begin{codebox}
-This section will contain the temperature scan from \code{Assignment 3 Homework.ipynb}: the pilot runs, the production chains, the analysis at each temperature, and the plot of $\langle|m|\rangle$ against $T$. It reuses the sampler and the error tools of Problem 1A.
-\end{codebox}
+The temperature scan from \code{Assignment 3 Homework.ipynb}. It reuses the sampler and the error tools listed in Problem 1A.
+
+\lstinputlisting[title={\code{code/problem\_1B.py}}]{code/problem_1B.py}
 
 % =====================================================================
 \section{Problem 2: Path-integral Monte Carlo at finite temperature}
@@ -354,10 +350,10 @@ The acceptance depends on $h$ and $\delta\tau$ \src{L19, Acceptance rate vs.\ hi
 \frac{(x_i-a)^2+(b-x_i)^2}{2\,\delta\tau}+\frac{\delta\tau}{2}x_i^2
 =\frac{2+\delta\tau^2}{2\,\delta\tau}\,x_i^2-\frac{a+b}{\delta\tau}\,x_i+\text{const},
 \end{equation}
-so, given its neighbors, $x_i$ is Gaussian with variance $\delta\tau/(2+\delta\tau^2)\approx\delta\tau/2$, a width of $0.22$ at $\delta\tau=0.1$. The stiff springs, not the potential, set this width. Proposals much larger than it are almost always rejected; much smaller ones are almost always accepted but barely move the path. The useful scale is therefore $h\propto\sqrt{\delta\tau}$, which is the scaling Lab 14 uses when it refines the grid \src{Lab 14, slide 25}. Creutz and Freedman's choice $h=2\sqrt{\delta\tau}\approx0.63$ gives about $50\%$ acceptance \src{L19, Autocorrelation time vs.\ hit size}, so the assignment's 40--60\% window corresponds to $h$ of order $0.5$--$0.7$. Lecture also shows that $\tau_\text{int}$ is close to its minimum between about $30\%$ and $55\%$ acceptance \src{L19, Autocorrelation time vs.\ hit size}, so anywhere in the window is a good choice. I will scan $h$ in short runs, pick a value inside the window, and report the acceptance of the production run.
+so, given its neighbors, $x_i$ is Gaussian with variance $\delta\tau/(2+\delta\tau^2)\approx\delta\tau/2$, a width of $0.22$ at $\delta\tau=0.1$. The stiff springs, not the potential, set this width. Proposals much larger than it are almost always rejected; much smaller ones are almost always accepted but barely move the path. The useful scale is therefore $h\propto\sqrt{\delta\tau}$, which is the scaling Lab 14 uses when it refines the grid \src{Lab 14, slide 25}. Creutz and Freedman's choice $h=2\sqrt{\delta\tau}\approx0.63$ gives about $50\%$ acceptance \src{L19, Autocorrelation time vs.\ hit size}, so the assignment's 40--60\% window corresponds to $h$ of order $0.5$--$0.7$. Lecture also shows that $\tau_\text{int}$ is close to its minimum between about $30\%$ and $55\%$ acceptance \src{L19, Autocorrelation time vs.\ hit size}, so anywhere in the window is a good choice. I scan $h=0.3,0.4,\dots,1.0$ in short runs of 20,000 sweeps, take the value whose acceptance is closest to $50\%$, and report the acceptance of the production run.
 
 \paragraph{Burn-in.}
-I use a cold start, $\mathbf x=0$ \src{L18, MCMC steps; Lab 14, slide 18}. The measured $f$ then starts at $0$ and must climb to about $1.08$, and lecture uses exactly this rise of $\langle x^2\rangle$ to judge equilibration \src{L19, Equilibration and burn in}. How long it takes is set by the slowest motion of the path, which Problem 2A(ii) shows to be the path center. I therefore expect a burn-in of many hundreds of sweeps, far longer than at the coarse grid of Lab 14. I will justify the burn-in by plotting the first several thousand sweeps of $f$, choosing the point after which the trace stays within its later fluctuations, and checking that it is at least several $\tau_\text{int}$, following the same reasoning as in Problem 1A. Since the production run will be long, a generous burn-in costs little.
+I use a cold start, $\mathbf x=0$ \src{L18, MCMC steps; Lab 14, slide 18}. The measured $f$ then starts at $0$ and must climb to about $1.08$, and lecture uses exactly this rise of $\langle x^2\rangle$ to judge equilibration \src{L19, Equilibration and burn in}. How long it takes is set by the slowest motion of the path, which Problem 2A(ii) shows to be the path center. I therefore expect a burn-in of many hundreds of sweeps, far longer than at the coarse grid of Lab 14. I use the same rule as in Problem 1A, burn-in $=t_\text{eq}+10\,\tau_\text{int}$, applied to the first 50,000 sweeps of the chain, and I justify it by plotting the start of the trace with the burn-in marked. The chain then simply continues: the burn-in is discarded and the next $10^6$ sweeps are kept. Since the production run will be long, a generous burn-in costs little.
 
 \paragraph{Error bars, naive and blocked.}
 The error analysis is that of Problem 1A, applied to $f$. The naive error $s/\sqrt N$ treats every sweep as independent. The blocking error is read from the plateau, and the two should satisfy $(\sigma_\text{block}/\sigma_\text{naive})^2\approx\tau_\text{int}$. Lecture gives an example: with $\tau_\text{int}\approx13$ the naive error is too small by $\sqrt{13}\approx3.7$, and independent chains confirm the corrected error \src{L19, Naive error bars}. The analysis of 2A(ii) predicts a $\tau_\text{int}$ of hundreds of sweeps here, so the naive error should be too small by a factor of order ten or more. The run length follows from the same rule as before. The reliability criterion $N\gtrsim50\,\tau_\text{int}$ \src{L16, Estimating $\tau_f$ in practice} means that the minimum of 50,000 sweeps is only just enough. Since a sweep of 10 updates costs almost nothing when compiled, I plan on the order of $10^6$ kept sweeps, which makes the blocking plateau clear and the error bar small. The field \code{n\_sweeps\_single} counts only the kept sweeps.
@@ -365,10 +361,10 @@ The error analysis is that of Problem 1A, applied to $f$. The naive error $s/\sq
 \paragraph{Computational steps.}
 \begin{enumerate}
 \item Set $\beta=1$, $\delta\tau=0.1$, $N=10$. Compute the exact references $\frac12\coth(\frac12)=1.08198$ and $\langle x^2\rangle_{\delta\tau}=1.08101$.
-\item Scan $h$ with short runs (seeds $\code{SEED}+210+j$) and choose $h$ with acceptance in 40--60\%.
+\item Scan $h=0.3,\dots,1.0$ with runs of 20,000 sweeps (seeds $\code{SEED}+210+j$) and choose the $h$ whose acceptance is closest to $50\%$.
 \item Production run (seed $\code{SEED}+200$): start from $\mathbf x=0$. One sweep visits $i=0,\dots,9$ in order, proposes $x_i'=x_i+u$, computes $\Delta S_E$ from \eqref{eq:dS} with periodic neighbors, and accepts if $\Delta S_E\le0$ or a uniform random number is below $e^{-\Delta S_E}$. Record $f=\frac1N\sum x_i^2$ after every sweep and count accepted updates.
-\item Plot the first part of the trace to choose and justify the burn-in, then discard it.
-\item On the kept sweeps: the time series of $f$; $\hat\rho(t)$ and its plot; $\tau_\text{int}$ with the window $M\ge5\tau$; the naive error; the blocking curve and its plateau. Compare $(\text{blocked}/\text{naive})^2$ with $\tau_\text{int}$.
+\item From the first 50,000 sweeps, set the burn-in to $t_\text{eq}+10\,\tau_\text{int}$; continue the same chain until $10^6$ sweeps after the burn-in are kept, and plot the start of the trace with the burn-in marked.
+\item On the kept sweeps: the time series of $f$; $\hat\rho(t)$ and its plot; $\tau_\text{int}$ with the window $M\ge5\tau$; the naive error; the blocking curve and its plateau at $B^*$. Compare $(\text{blocked}/\text{naive})^2$ with $\tau_\text{int}$.
 \item Report $\langle x^2\rangle_\beta\pm\sigma_\text{block}$ and compare it with both exact references, in units of the error bar. Write \code{h}, \code{acceptance}, \code{n\_sweeps\_single}, \code{x2\_single}, \code{x2\_err\_single}, \code{x2\_err\_naive} and \code{tau\_single} to \code{results.json}.
 \end{enumerate}
 
@@ -381,9 +377,10 @@ As in Problem 1, the Lab 10 checklist sets the tests:
 \end{itemize}
 
 \subsubsection*{Full code}
-\begin{codebox}
-This section will contain the complete, commented code for Problem 2A(i) from \code{Assignment 3 Homework.ipynb}: \code{action}, \code{delta\_action}, \code{pimc\_sweeps}, \code{x2\_exact}, \code{x2\_exact\_discrete}, the path-integral validation tests, the scan of $h$, the production run, and the plots and error analysis. It reuses the shared error tools of Problem 1A.
-\end{codebox}
+The path-integral code from \code{Assignment 3 Homework.ipynb}: the action and the sampler, their validation tests, the scan of $h$, the production run and analysis, and the plots. The last listing writes \code{results.json} for the autograder, after printing a summary of all validation tests. The shared error tools are listed in Problem 1A.
+
+\lstinputlisting[title={\code{code/problem\_2A.py}}]{code/problem_2A.py}
+\lstinputlisting[title={\code{code/results\_json.py}}]{code/results_json.py}
 
 % ---------------------------------------------------------------------
 \subsection{Problem 2A(ii)}
@@ -421,7 +418,7 @@ Single-slice updates decorrelate slowly because they are local moves in a proble
 
 \subsubsection*{Full code}
 \begin{nocodebox}
-No separate code. This part is answered analytically, and the prediction is compared with the $\tau_\text{int}$ measured in Problem 2A(i).
+No separate code. This part is answered analytically. The last line printed by the Problem 2A(i) production cell (\code{code/problem\_2A.py}) compares the estimate $2/\delta\tau^2$ with the measured $\tau_\text{int}$.
 \end{nocodebox}
 
 % =====================================================================
