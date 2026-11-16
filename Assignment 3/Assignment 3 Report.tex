@@ -7,6 +7,8 @@
 \usepackage{xcolor}
 \usepackage{listings}
 \usepackage{tabularx}
+\usepackage{graphicx}
+\usepackage{caption}
 \usepackage{xurl}
 \usepackage[hidelinks]{hyperref}
 
@@ -47,7 +49,7 @@
 \section*{About this report}
 \addcontentsline{toc}{section}{About this report}
 
-This report covers Problems 1A, 1B and 2A of Assignment 3. I did not attempt the bonus Problem 2B. Every problem is presented in three parts: the problem statement as given, a theoretical analysis written \emph{before} any code, and the full code. The analyses are built only from the lectures (Lectures 13--19) and labs (Labs 10, 11, 12 and 14) of the course. A blue tag such as \src{L16, Blocking} names the lecture slide or lab section a step comes from. The few steps that need something from outside the course are marked with a red tag, \ext{like this}.
+This report covers Problems 1A, 1B and 2A of Assignment 3. I did not attempt the bonus Problem 2B. Every problem is presented in three parts: the problem statement as given, a theoretical analysis written \emph{before} any code, and the full code, which is followed directly by the results it produced and their discussion. The analyses are built only from the lectures (Lectures 13--19) and labs (Labs 10, 11, 12 and 14) of the course. A blue tag such as \src{L16, Blocking} names the lecture slide or lab section a step comes from. The few steps that need something from outside the course are marked with a red tag, \ext{like this}.
 
 \paragraph{Conventions.} Problem 1 uses $J=k_B=1$ on a $20\times20$ periodic lattice, so $|\Lambda|=400$. Problem 2 uses $m=\hbar=\omega=1$ and $\delta\tau=0.1$. In both problems Monte Carlo time is counted in \emph{sweeps}: $|\Lambda|$ attempted spin flips in Problem 1 and $N$ attempted slice updates in Problem 2. Every random number generator is seeded from one integer, $\code{SEED}=200288141$ (my TSN), and my $k$-th run uses $\code{SEED}+k$, as the assignment requires. The run numbers are fixed in advance so that any run can be repeated at Oral Checkpoint 3:
 
@@ -190,6 +192,30 @@ The complete code is in \code{Assignment 3 Homework.ipynb}. The listings below a
 \lstinputlisting[title={\code{code/setup\_and\_error\_tools.py}}]{code/setup_and_error_tools.py}
 \lstinputlisting[title={\code{code/problem\_1A.py}}]{code/problem_1A.py}
 
+\begin{center}
+\includegraphics[width=0.9\linewidth]{figures/1A_trace.png}
+\captionof{figure}{Problem 1A: magnetization per spin after every sweep at $T=2$, from the all-up start (blue) and the random start (red). Top: the first 1000 sweeps, with each burn-in dashed. Bottom: the whole run of $10^5$ sweeps. Dotted lines: $\pm m_0(2)=\pm0.911$.}
+\label{fig:1A-trace}
+\end{center}
+
+Figure~\ref{fig:1A-trace} shows $m$ after every sweep for both starts. One sweep is 400 attempted flips, so each run of $10^5$ sweeps is $4\times10^7$ single-flip MCMC steps. The all-up start falls from $m=1$ into the equilibrium band almost at once, reaching its equilibrium mean at sweep $t_\text{eq}=8$. The random start begins at $m\approx0$, climbs as aligned regions grow, and reaches the equilibrium mean at sweep 110. In this run it ordered with $m>0$, and it did not get stuck at $m\approx0$. With $\tau_\text{int}$ measured on the second half of each run (16.2 and 11.8 sweeps), the rule $t_\text{eq}+10\,\tau_\text{int}$ gives a burn-in of \textbf{170 sweeps for the all-up start} and \textbf{228 sweeps for the random start}, that is $6.8\times10^4$ and $9.1\times10^4$ single-flip steps. As predicted, the random start needs the longer burn-in. The difference is smaller than I expected, because on a $20\times20$ lattice the aligned regions span the whole system after about a hundred sweeps. The acceptance rate is $0.079$ for both chains, matching Lab 11's $0.080$ at the same temperature.
+
+\begin{center}
+\includegraphics[width=0.95\linewidth]{figures/1A_autocorr_blocking.png}
+\captionof{figure}{Problem 1A, after burn-in: autocorrelation of $|m|$ (left) and blocking curves (right). The circled point is the plateau value read at $B^*$, the smallest power of 2 with $B^*\ge20\,\tau_\text{int}$.}
+\label{fig:1A-err}
+\end{center}
+
+After burn-in both chains give the same magnetization:
+\begin{equation*}
+\langle|m|\rangle=0.9112\pm0.0006\ \text{(all up)},\qquad \langle|m|\rangle=0.9111\pm0.0006\ \text{(random)},
+\end{equation*}
+with blocking error bars read at $B^*=512$ sweeps. They agree with each other and with Yang's infinite-lattice value $m_0(2)=0.9113$. At $T=2$ the correlation length is much smaller than $L=20$, so the finite lattice causes no difference at this resolution. Figure~\ref{fig:1A-err} shows why the error bar needs care. The autocorrelation of $|m|$ dies out within a few tens of sweeps, with $\tau_\text{int}=15.3$ and $23.4$ sweeps (windows $M=77$ and $117$). Meanwhile the blocking curves rise from the naive error, $0.0001$, to a plateau that is $\sqrt{16.4}\approx4$ and $\sqrt{20.5}\approx4.5$ times larger. These squared ratios match the two $\tau_\text{int}$ values, as Eq.~(1.8) requires.
+
+The two $\tau_\text{int}$ values differ by more than their expected scatter, and the trace explains why. Near sweep 10{,}450 the random-start chain makes one deep, long-lived excursion to $|m|=0.25$ (visible in the bottom panel of Fig.~\ref{fig:1A-trace}), spending 62 sweeps below $|m|=0.5$. Splitting its kept sweeps in half gives $\tau_\text{int}=35.9$ for the half containing this excursion and $11.8$ for the other. The all-up chain has no such event, and its halves agree (14.4 and 16.1). A rare, slow fluctuation therefore dominates $\tau_\text{int}$ whenever it happens to fall inside the run. This is one more reason to treat $N\gtrsim50\,\tau_\text{int}$ as a minimum rather than a target.
+
+This answers the question of the total number of steps. A reliable $\tau_\text{int}$ needs $50\,\tau_\text{int}\approx800$--$1200$ sweeps. To reach an error of $0.001$ on $\langle|m|\rangle$ takes $\tau_\text{int}\mathrm{Var}[|m|]/0.001^2\approx3\times10^4$--$5\times10^4$ sweeps. A good total is therefore \textbf{about $5\times10^4$ sweeps after burn-in} ($2\times10^7$ single-flip steps), which gives $\langle|m|\rangle$ to about $\pm0.001$. My runs of $10^5$ sweeps reach $\pm0.0006$.
+
 % ---------------------------------------------------------------------
 \subsection{Problem 1B}
 
@@ -258,6 +284,48 @@ From the three finite-lattice effects above, I expect a rounded rather than shar
 The temperature scan from \code{Assignment 3 Homework.ipynb}. It reuses the sampler and the error tools listed in Problem 1A.
 
 \lstinputlisting[title={\code{code/problem\_1B.py}}]{code/problem_1B.py}
+
+\begin{center}
+\includegraphics[width=0.85\linewidth]{figures/1B_magnetization.png}
+\captionof{figure}{Problem 1B. Top: $\langle|m|\rangle$ against temperature (points), with the blocking error of the mean as error bars (smaller than the points) and the standard deviation of $|m|$ as the shaded band; the black curve is Yang's infinite-lattice $m_0(T)$ and the dashed line is $T_c$. Bottom: integrated autocorrelation time of $|m|$.}
+\label{fig:1B}
+\end{center}
+
+\begin{center}
+\small
+\begin{tabular}{rrrcccccc}
+\toprule
+$T$ & burn-in & kept/chain & $\langle|m|\rangle$ & std of $|m|$ & error (blocking) & error (4 chains) & $\tau_\text{int}$ & acceptance \\
+\midrule
+1.0 & 170 & 50{,}000 & 0.9993 & 0.0020 & 0.00001 & 0.00001 & 2.3 & 0.001 \\
+1.2 & 170 & 50{,}000 & 0.9970 & 0.0042 & 0.00001 & 0.00002 & 2.5 & 0.003 \\
+1.4 & 170 & 50{,}000 & 0.9914 & 0.0077 & 0.00003 & 0.00004 & 2.9 & 0.009 \\
+1.6 & 170 & 50{,}000 & 0.9796 & 0.0132 & 0.00006 & 0.00006 & 4.0 & 0.020 \\
+1.8 & 170 & 50{,}000 & 0.9569 & 0.0224 & 0.00012 & 0.00010 & 6.0 & 0.041 \\
+2.0 & 170 & 50{,}000 & 0.9114 & 0.0451 & 0.00046 & 0.00058 & 19.4 & 0.079 \\
+2.2 & 913 & 131{,}072 & 0.7940 & 0.1194 & 0.00149 & 0.00143 & 81.7 & 0.149 \\
+2.4 & 1210 & 262{,}144 & 0.4525 & 0.2304 & 0.00248 & 0.00178 & 108.4 & 0.270 \\
+2.6 & 415 & 65{,}536 & 0.2407 & 0.1669 & 0.00196 & 0.00256 & 38.6 & 0.356 \\
+2.8 & 206 & 50{,}000 & 0.1707 & 0.1237 & 0.00120 & 0.00055 & 19.3 & 0.415 \\
+3.0 & 170 & 50{,}000 & 0.1368 & 0.1011 & 0.00072 & 0.00066 & 11.6 & 0.461 \\
+3.2 & 170 & 50{,}000 & 0.1168 & 0.0876 & 0.00054 & 0.00019 & 7.7 & 0.500 \\
+3.4 & 170 & 50{,}000 & 0.1039 & 0.0774 & 0.00042 & 0.00023 & 5.9 & 0.533 \\
+3.6 & 170 & 50{,}000 & 0.0949 & 0.0712 & 0.00035 & 0.00024 & 4.7 & 0.562 \\
+3.8 & 170 & 50{,}000 & 0.0883 & 0.0665 & 0.00029 & 0.00030 & 4.1 & 0.587 \\
+4.0 & 170 & 50{,}000 & 0.0823 & 0.0619 & 0.00024 & 0.00008 & 3.3 & 0.609 \\
+\bottomrule
+\end{tabular}
+\captionof{table}{Problem 1B: burn-in and kept sweeps per chain, results, and diagnostics at each temperature (four chains each, $\tau_\text{int}$ in sweeps).}
+\label{tab:1B}
+\end{center}
+
+Table~\ref{tab:1B} shows the strategy as it played out. The pilot chains gave $\tau_\text{int}$ from 2.3 sweeps at $T=1$ up to about 100 sweeps near $T_c$. The burn-in therefore stayed at the 1A minimum of 170 sweeps except between $T=2.2$ and $2.8$, where it grew to as much as 1210 sweeps. The chains were lengthened only at $T=2.2$, $2.4$ and $2.6$, to as much as 262{,}144 sweeps. Every chain reached a blocking plateau at $B^*\ge20\,\tau_\text{int}$ with at least 32 blocks. The error from the spread of the four chain means agrees with the blocking error at most temperatures, for example $0.00149$ against $0.00143$ at $T=2.2$. Elsewhere it is up to three times smaller. With only four chains, that estimate is itself uncertain by about $40\%$ and occasionally comes out this low, so I quote the blocking error, which uses every sweep. The acceptance rises from $0.001$ at $T=1$ to $0.61$ at $T=4$, in line with Lab 11's values at $T=1.5$, $2.269$ and $3.5$.
+
+Below the transition the simulation reproduces the theory: for $T\le2.0$, $\langle|m|\rangle$ matches Yang's $m_0(T)$ to $10^{-4}$, from $0.9993$ at $T=1$ to $0.9114$ against $0.9113$ at $T=2$. The finite lattice first shows at $T=2.2$, where $\langle|m|\rangle=0.794$ lies above $m_0=0.785$. Above $T_c=2.269$, where the infinite lattice has $m_0=0$, the lattice still gives $0.45$ at $T=2.4$ and $0.24$ at $T=2.6$, and decays slowly to $0.08$ at $T=4$.
+
+So \textbf{I do not observe a sharp phase transition.} The drop is spread over roughly $T=2.2$--$2.8$, steepest between $2.2$ and $2.6$, an interval that brackets $T_c$. A tail of order $\xi/L$ remains above $T_c$. This is the rounding predicted in the analysis: once the correlation length reaches the size of a $20\times20$ lattice, the lattice can no longer distinguish order from disorder. The other predicted signatures of the transition appear in the same range. The fluctuations of $|m|$, the shaded band, are widest at $T=2.4$ (standard deviation $0.23$), and $\tau_\text{int}$ peaks there at 108 sweeps, about 50 times its value at $T=1$. That is critical slowing down. With a temperature spacing of $0.2$, the peak cannot be located more precisely than that.
+
+The analysis listed several things that could go wrong, and the checks rule out the computational ones. The sampler passes the exact $3\times3$ comparison. I average $|m|$, not $m$. Every burn-in exceeds $10\,\tau_\text{int}$, and every chain is long enough for a blocking plateau. That leaves the lattice size itself. No finite lattice has a non-analytic $m(T)$, and $L=20$ is small enough for the rounding to cover several grid temperatures. The cure suggested by the course material is a larger lattice; the susceptibility peak sharpens as $L^{7/4}$. But $\tau_\text{int}$ near $T_c$ grows as $L^{2.17}$ for single-spin Metropolis, so larger lattices quickly become expensive, which is why lecture points to cluster algorithms (Wolff, Swendsen--Wang) with $z\lesssim0.3$ \src{L17, Results; Critical slowing down}.
 
 % =====================================================================
 \section{Problem 2: Path-integral Monte Carlo at finite temperature}
@@ -382,6 +450,36 @@ The path-integral code from \code{Assignment 3 Homework.ipynb}: the action and t
 \lstinputlisting[title={\code{code/problem\_2A.py}}]{code/problem_2A.py}
 \lstinputlisting[title={\code{code/results\_json.py}}]{code/results_json.py}
 
+\begin{center}
+\includegraphics[width=0.55\linewidth]{figures/2A_h_scan.png}
+\captionof{figure}{Problem 2A(i): acceptance of single-slice updates against the hit size $h$ (runs of 20{,}000 sweeps). The shaded band is the required 40--60\% window.}
+\label{fig:2A-h}
+\end{center}
+
+The scan of the hit size (Fig.~\ref{fig:2A-h}) gives acceptances of $0.741$, $0.663$, $0.593$, $0.532$, $0.474$, $0.430$, $0.388$ and $0.351$ for $h=0.3,0.4,\dots,1.0$. The 40--60\% window therefore covers $h\approx0.5$--$0.8$. I chose $h=0.7$, which is closest to 50\% (0.474 in the scan, and 0.477 over the production run). Creutz and Freedman's $2\sqrt{\delta\tau}=0.63$ lies between $h=0.6$ (53\%) and $0.7$ (47\%), so it does give about 50\% acceptance, as lecture states.
+
+\begin{center}
+\includegraphics[width=0.9\linewidth]{figures/2A_trace.png}
+\captionof{figure}{Problem 2A(i): time series of $\frac1N\sum_ix_i^2$. Top: the start of the chain from $\mathbf x=0$, with the burn-in dashed. Bottom: the $10^6$ kept sweeps. Dotted: the exact value at $\delta\tau=0.1$.}
+\label{fig:2A-trace}
+\end{center}
+
+From the cold start, $f=\frac1N\sum_ix_i^2$ first reaches its equilibrium mean after only 38 sweeps (Fig.~\ref{fig:2A-trace}, top). With $\tau_\text{int}=506$ sweeps measured on the start of the chain, the rule $t_\text{eq}+10\,\tau_\text{int}$ gives a burn-in of 5{,}095 sweeps, 0.5\% of the run. The transient is much shorter than the ``many hundreds of sweeps'' I predicted, and the decomposition of Problem 2A(ii) explains why. The cold start puts the slow center mode at $\bar x=0$, which is already its most probable value, so only the fast modes $\xi_i$ have to relax, and they need only tens of sweeps. The burn-in is therefore set almost entirely by the $10\,\tau_\text{int}$ safety margin. The trace itself shows the slow mode at work: $f$ makes long excursions far above its mean, up to $f\approx12$ near sweep 11{,}500, that last hundreds of sweeps. These are the path center wandering away from zero.
+
+\begin{center}
+\includegraphics[width=0.95\linewidth]{figures/2A_autocorr_blocking.png}
+\captionof{figure}{Problem 2A(i): autocorrelation of $\frac1N\sum_ix_i^2$ with the summation window $M$ (left), and the blocking curve with the naive error and the plateau value at $B^*$ (right).}
+\label{fig:2A-err}
+\end{center}
+
+The $10^6$ kept sweeps give
+\begin{equation*}
+\langle x^2\rangle_\beta=1.1025\pm0.0290\ \text{(blocking)},\qquad\text{naive error }\pm0.0014,\qquad\tau_\text{int}=416\ \text{sweeps}.
+\end{equation*}
+The autocorrelation (Fig.~\ref{fig:2A-err}, left) takes about 1000 sweeps to die out, and the window rule stops the sum at $M=2082$. The blocking curve (right) climbs from the naive error at $B=1$ to a plateau of $0.028$--$0.029$ for $B=2^{11}$--$2^{14}$. I read it at $B^*=16{,}384$, the first power of 2 above $20\,\tau_\text{int}=8{,}300$, which leaves 61 blocks. Two independent estimates agree: $(\sigma_\text{block}/\sigma_\text{naive})^2=404$ against $\tau_\text{int}=416$, within 3\%. The chain is $N/\tau_\text{int}=2400$ autocorrelation times long, well beyond the $50\,\tau_\text{int}$ criterion.
+
+The comparison with the exact answers shows why the error bar decides the conclusion. With the honest blocking error, the result is $+0.74\sigma$ from the discretized value $1.08101$ and $+0.71\sigma$ from the continuum value $1.08198$: full agreement. With the naive error, the same $0.0215$ difference would look like a $15\sigma$ discrepancy. That is exactly the false alarm Lab 12 warns about, and here it comes from a naive error that is $\sqrt{416}\approx20$ times too small. The statistical error, $2.6\%$, is also about 30 times the $0.09\%$ shift caused by the time step, so this run cannot tell the discretized answer from the continuum one. With only the required minimum of 50{,}000 sweeps, the error bar would have been about $0.029\sqrt{20}\approx0.13$.
+
 % ---------------------------------------------------------------------
 \subsection{Problem 2A(ii)}
 
@@ -409,7 +507,7 @@ The center is therefore Gaussian with variance $1/\beta$ ($=1$ at $\beta=1$), an
 \paragraph{How long the trip takes.}
 Accepted moves push the center around randomly, by $\pm u/N$ per update. Per sweep, the $N$ updates add a variance of about $N\,\sigma_u^2/N^2=\sigma_u^2/N$, with $\sigma_u^2\sim\delta\tau/2$ the typical squared accepted move. To diffuse across its own width, variance $1/\beta$, the center therefore needs about
 \begin{equation}
-n_\text{sweeps}\sim\frac{1/\beta}{\sigma_u^2/N}=\frac{1}{\delta\tau\,\sigma_u^2}\sim\frac{2}{\delta\tau^2}
+n_\text{sweeps}\sim\frac{1/\beta}{\sigma_u^2/N}=\frac{1}{\delta\tau\,\sigma_u^2}\sim\frac{2}{\delta\tau^2}\label{eq:ntrip}
 \end{equation}
 sweeps. That is on the order of $200$ sweeps at $\delta\tau=0.1$, independent of $\beta$, and it grows as $1/\delta\tau^2$ when the grid is refined at fixed $\beta$. The measured quantity inherits this slow mode: from the same decomposition, $f=\frac1N\sum_ix_i^2=\bar x^2+\frac1N\sum_i\xi_i^2$, so $f$ cannot decorrelate faster than $\bar x$ does. I therefore expect $\tau_\text{int}$ of $f$ to be of order hundreds of sweeps, and much larger than the $\tau_\text{int}\approx13$ of lecture's coarser example \src{L19, Naive error bars}. The same trend appears in the course material. In Lab 14 the error bar at fixed number of sweeps grows as $\Delta\tau$ shrinks, because ``the finer chain is more correlated'' \src{Lab 14, slide 26}, and the autocorrelation time in lecture grows steeply as the time step decreases \src{L19, Autocorrelation function}.
 
@@ -420,6 +518,8 @@ Single-slice updates decorrelate slowly because they are local moves in a proble
 \begin{nocodebox}
 No separate code. This part is answered analytically. The last line printed by the Problem 2A(i) production cell (\code{code/problem\_2A.py}) compares the estimate $2/\delta\tau^2$ with the measured $\tau_\text{int}$.
 \end{nocodebox}
+
+The measurement in Problem 2A(i) confirms the analysis. Single-slice updates give $\tau_\text{int}=416$ sweeps for $\frac1N\sum_ix_i^2$. That is about 30 times the $\tau_\text{int}\approx13$ of lecture's example \src{L19, Naive error bars}, and roughly 20 times the Ising value at $T=2$ in Problem 1A (15--23 sweeps). The estimate \eqref{eq:ntrip} of about 200 sweeps is the time for the center to diffuse once across its own width, which is a relaxation time of the order of $\tau_\text{exp}$. Since $\tau_\text{int}\approx2\,\tau_\text{exp}$ \src{L19, Autocorrelation function}, it predicts $\tau_\text{int}\approx400$ sweeps, in agreement with the measured 416. The long excursions of $f$ in Fig.~\ref{fig:2A-trace}, lasting hundreds of sweeps, are this slow center mode made visible. The cold-start transient in Problem 2A(i) was short for the same reason: the center starts at its most probable value.
 
 % =====================================================================
 \section*{AI use appendix}
