@@ -1,0 +1,454 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.9in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array}
+\usepackage{enumitem}
+\usepackage[most]{tcolorbox}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{tabularx}
+\usepackage{xurl}
+\usepackage[hidelinks]{hyperref}
+
+\setlist{itemsep=2pt,topsep=3pt,leftmargin=*}
+\setlength{\parskip}{5pt}
+\renewcommand{\arraystretch}{1.2}
+\numberwithin{equation}{section}
+
+% Source tags: every step of the analysis points to the course material it comes from.
+\newcommand{\srctext}[1]{{\color{blue!55!black}\footnotesize[#1]}}
+\newcommand{\src}[1]{\ifmmode\text{\srctext{#1}}\else\srctext{#1}\fi}
+% Steps that need knowledge from outside the lectures and labs.
+\newcommand{\exttext}[1]{{\color{red!65!black}\footnotesize[External: #1]}}
+\newcommand{\ext}[1]{\ifmmode\text{\exttext{#1}}\else\exttext{#1}\fi}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\newtcolorbox{statement}{colback=gray!6,colframe=gray!55!black,boxrule=0.5pt,
+  left=6pt,right=6pt,top=4pt,bottom=4pt}
+\newtcolorbox{codebox}{colback=yellow!6,colframe=orange!60!black,boxrule=0.5pt,
+  left=6pt,right=6pt,top=4pt,bottom=4pt,before upper={\textit{To be added once the code is written and passes the validation tests.}\par\smallskip}}
+
+\newtcolorbox{nocodebox}{colback=yellow!6,colframe=orange!60!black,boxrule=0.5pt,left=6pt,right=6pt,top=4pt,bottom=4pt}
+
+\lstset{language=Python,basicstyle=\ttfamily\footnotesize,keywordstyle=\color{blue!60!black}\bfseries,
+  commentstyle=\color{green!40!black},stringstyle=\color{red!50!black},frame=single,rulecolor=\color{gray!60},
+  backgroundcolor=\color{gray!5},breaklines=true,columns=fullflexible,showstringspaces=false,
+  numbers=left,numberstyle=\tiny\color{gray},xleftmargin=1.5em,framexleftmargin=1.5em}
+
+\title{PHYS 142/242 --- Assignment 3\\[3pt]
+\large MCMC, the 2D Ising Model, and Path-Integral Monte Carlo at Finite Temperature}
+\author{Ken Nguyen \quad (TSN 200288141)}
+\date{}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+% =====================================================================
+\section*{About this report}
+\addcontentsline{toc}{section}{About this report}
+
+This report covers Problems 1A, 1B and 2A of Assignment 3. I did not attempt the bonus Problem 2B. Every problem is presented in three parts: the problem statement as given, a theoretical analysis written \emph{before} any code, and the full code. The analyses are built only from the lectures (Lectures 13--19) and labs (Labs 10, 11, 12 and 14) of the course. A blue tag such as \src{L16, Blocking} names the lecture slide or lab section a step comes from. The few steps that need something from outside the course are marked with a red tag, \ext{like this}.
+
+\paragraph{Conventions.} Problem 1 uses $J=k_B=1$ on a $20\times20$ periodic lattice, so $|\Lambda|=400$. Problem 2 uses $m=\hbar=\omega=1$ and $\delta\tau=0.1$. In both problems Monte Carlo time is counted in \emph{sweeps}: $|\Lambda|$ attempted spin flips in Problem 1 and $N$ attempted slice updates in Problem 2. Every random number generator is seeded from one integer, $\code{SEED}=200288141$ (my TSN), and my $k$-th run uses $\code{SEED}+k$, as the assignment requires. The run numbers are fixed in advance so that any run can be repeated at Oral Checkpoint 3:
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+$k$ & run \\
+\midrule
+0, 1 & Problem 1A: all-up start, random start \\
+$100+10\,i_T+c$ & Problem 1B: temperature index $i_T=0,\dots,15$, chain $c$ \\
+200 & Problem 2A(i): production run \\
+$210+j$ & Problem 2A(i): short runs scanning the hit size $h$ \\
+900--999 & validation tests (not part of any reported result) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% =====================================================================
+\section{Problem 1: MCMC and the 2D Ising model}
+
+% ---------------------------------------------------------------------
+\subsection{Problem 1A}\label{sec:1a}
+
+\subsubsection*{Problem statement}
+\begin{statement}
+Consider the 2D Ising model in a square lattice $\Lambda$ with $20\times20$ sites and periodic boundary conditions. The energy of the system for a given spin configuration $\sigma=\{\sigma_i\}_{i\in\Lambda}$ is
+\begin{equation*}
+E(\sigma)=-J\sum_{\langle ij\rangle}\sigma_i\sigma_j,\tag{1}
+\end{equation*}
+where $\langle ij\rangle$ denotes two adjacent sites (with no double counting), $J$ is the spin-spin interaction, and $\sigma_i\in\{-1,+1\}$ is the spin at site $i$.
+
+The total magnetization of the system and the magnetization per spin are
+\begin{equation*}
+M(\sigma)=\sum_{i\in\Lambda}\sigma_i,\qquad m(\sigma)=\frac{M(\sigma)}{|\Lambda|}=\frac{1}{|\Lambda|}\sum_{i\in\Lambda}\sigma_i.\tag{2}
+\end{equation*}
+The probability of a given configuration $\sigma$ is given by the Boltzmann distribution
+\begin{equation*}
+p(\sigma)=\frac1Z\exp\!\left(-\frac{E(\sigma)}{k_BT}\right),\tag{3}
+\end{equation*}
+where $Z=\sum_\sigma\exp\!\left(-\frac{E(\sigma)}{k_BT}\right)$ is the partition function, $T$ is the temperature, and $k_B$ is the Boltzmann constant. For this problem, you may set $J=k_B=1$.
+
+\medskip
+\textbf{Problem A [10 points]:} Use MCMC to simulate the 2D Ising model at temperature $T=2$ and calculate the magnetization per spin $m$ at each time step. Try two initial configurations: one with all spins up and one with spins randomly up or down with equal probability. Plot $m$ as a function of MCMC time steps. What's a good number of ``burn-in'' steps for the two initial configurations? What's a good number of total steps to get a good estimate of the magnetization?
+\end{statement}
+
+\subsubsection*{Theoretical analysis}
+
+\paragraph{Why the distribution has to be sampled.}
+Equation~(3) assigns a probability to every spin configuration of the lattice, and the partition function needs all of them. With $|\Lambda|=400$ spins there are $2^{400}\approx10^{120}$ configurations. Lecture makes the same point with $2^{100}\approx10^{30}$ states for a $10\times10$ lattice \src{L14, Probability}, so a direct sum is out of the question. The idea of Markov chain Monte Carlo is to design a Markov process whose stationary distribution \emph{is} $p(\sigma)$, generate a long chain of configurations $\sigma^{(1)},\sigma^{(2)},\dots$ from it, and replace the thermal average by an average along the chain \src{L14, Markov chain MC},
+\begin{equation}
+\langle A\rangle=\sum_\sigma A(\sigma)\,p(\sigma)\;\approx\;\frac1K\sum_{k=1}^{K}A\big(\sigma^{(k)}\big),
+\end{equation}
+where $K$ counts the configurations kept after burn-in \src{Lab 11, Estimate a thermal average}. Everything below follows from asking what that Markov process must look like and how long the chain must be.
+
+\paragraph{Building the Markov process from detailed balance.}
+A Markov process is a set of transition probabilities $P(\sigma'|\sigma)$ that depend only on the current state and satisfy $\sum_{\sigma'}P(\sigma'|\sigma)=1$ \src{L14, Markov process and chain}. Lecture gives a sufficient condition for $p$ to be stationary, detailed balance, $P(\sigma'|\sigma)\,p(\sigma)=P(\sigma|\sigma')\,p(\sigma')$ for every pair of states \src{L14, Detailed balance}. Summing this over $\sigma$ shows why it works:
+\begin{equation}
+\sum_\sigma P(\sigma'|\sigma)\,p(\sigma)=p(\sigma')\sum_\sigma P(\sigma|\sigma')=p(\sigma'),
+\end{equation}
+so one step of the chain maps $p$ onto itself. Every transition is built from a proposal and an acceptance, $P(\sigma'|\sigma)=q(\sigma'|\sigma)\,A(\sigma'|\sigma)$ for $\sigma'\neq\sigma$ \src{L19, Quiz 4 formula sheet}. My proposal is the one from lecture and Lab 11: pick a site uniformly at random and flip its spin \src{L14, Applying MCMC to the 2D Ising model}. The reverse move is proposed by picking the same site, so $q(\sigma'|\sigma)=q(\sigma|\sigma')=1/|\Lambda|$: the proposal is symmetric \src{Lab 11, Accept or reject}. For a symmetric proposal the Metropolis acceptance $A(\sigma'|\sigma)=\min\!\big(1,p(\sigma')/p(\sigma)\big)$ satisfies detailed balance. If $p(\sigma')\le p(\sigma)$, the forward move is accepted with probability $p(\sigma')/p(\sigma)$ and the reverse move always, so
+\begin{equation}
+P(\sigma'|\sigma)\,p(\sigma)=\frac{1}{|\Lambda|}\frac{p(\sigma')}{p(\sigma)}\,p(\sigma)=\frac{p(\sigma')}{|\Lambda|}=P(\sigma|\sigma')\,p(\sigma'),
+\end{equation}
+which is the check done in \src{L14, Checking detailed balance}. The key point is in the ratio,
+\begin{equation}
+\frac{p(\sigma')}{p(\sigma)}=\exp\!\left(-\frac{E(\sigma')-E(\sigma)}{T}\right)=e^{-\Delta E/T},
+\end{equation}
+which no longer contains $Z$. The one quantity that could never be computed drops out of the algorithm entirely. Because the proposal is symmetric, the Hastings correction $q(\sigma|\sigma')/q(\sigma'|\sigma)$ is exactly 1 and does not appear \src{L14, The Hastings correction; L16, Metropolis--Hastings algorithm}. Lab 10 shows how easily a missing or misplaced Hastings factor gives believable but wrong results \src{Lab 10, Part 2}, so this is worth stating explicitly.
+
+Detailed balance is not enough by itself: the chain must also be irreducible and aperiodic \src{L14, Detailed balance is not enough}. Single flips connect any two configurations in at most 400 steps, so the chain is irreducible. A rejected proposal leaves the lattice as it is but still counts as a step \src{Lab 11, Accept or reject}, and these rejections keep the chain aperiodic. Counting rejections as steps is also part of getting the probabilities right. Lab 10 contains a sampler whose rejected flips were never undone, and it silently sampled $T=\infty$ \src{Lab 10, Part 3}.
+
+\paragraph{The energy change of one flip.}
+Computing $E(\sigma')$ from Eq.~(1) for every proposal would cost 800 bond terms per step, but almost all of them cancel in $\Delta E$. Flipping $\sigma_k\to-\sigma_k$ changes only the four bonds that touch site $k$. Writing $h_k=\sum_{j\in\mathcal N(k)}\sigma_j$ for the sum of its four (periodic) neighbors, those bonds contribute $-J\sigma_kh_k$ before the flip and $+J\sigma_kh_k$ after it, so
+\begin{equation}
+\Delta E=2J\,\sigma_k\,h_k \qquad\src{L17, Applying MCMC to the 2D Ising model}.
+\end{equation}
+Since $h_k\in\{-4,-2,0,2,4\}$, the change can only be $\Delta E\in\{-8,-4,0,4,8\}$ in units of $J$. Only two of these values need a random number, so the two acceptance probabilities $e^{-4/T}$ and $e^{-8/T}$ can be computed once per temperature \src{L17, Practical considerations for Ising}. At $T=2$ they are $0.135$ and $0.018$. Nearly every energy-raising flip is rejected, and most accepted flips are ones with $\Delta E\le0$ at the edges of domains. There is no step size to tune; the temperature alone sets the acceptance rate \src{L17, Practical considerations for Ising}. Lab 11 measured an acceptance of $0.080$ at $T=2$ on a $24\times24$ lattice \src{Lab 11, Run at $T=2$}, and I expect a similar value here.
+
+\paragraph{Time, measurement, and a symmetry trap.}
+I count time in sweeps of $|\Lambda|=400$ attempted flips and record $m$ once per sweep \src{L17, Practical considerations for Ising; Lab 11, Count time in sweeps}. A single attempted flip changes $m$ by at most $2/400$, so recording after every attempt would only add highly redundant numbers. The energy function in Eq.~(1) has the symmetry $E(\sigma)=E(-\sigma)$. On any finite lattice this makes $\langle m\rangle$ \emph{exactly} zero, and below $T_c$ a small lattice can tunnel between $+m$ and $-m$, like a particle in a double well \src{L17, Pitfall: $\langle m\rangle=0$ by symmetry}. I therefore plot $m$ itself, as the problem asks, but I use $|m|$ for averages, which the assignment allows. Lecture also provides the number to compare with. Yang's result for the infinite lattice below $T_c$ is
+\begin{equation}
+m_0(T)=\left[1-\sinh^{-4}\!\left(\frac{2J}{T}\right)\right]^{1/8}\label{eq:yang}\qquad\src{L17, Ising model: comparison to theory},
+\end{equation}
+which gives $m_0(2)\approx0.911$. Lab 11 found $\langle|m|\rangle=0.907$ at $T=2$ on a $24\times24$ lattice \src{Lab 11, After burn-in}, so $L=20$ should land close to this value.
+
+\paragraph{Initial configurations and burn-in.}
+Burn-in means throwing away the start of the chain, to remove the transient left by an improbable initial configuration. Equivalently, one can start close to equilibrium \src{L14, Burn-in}. Lecture's autoregressive example, $x_{n+1}=rx_n+e_n$ with $r=0.98$, shows what the transient looks like: the memory of the start decays as $\rho(t)=r^t=e^{-t/\tau_\text{exp}}$, with $\tau_\text{exp}=-1/\ln r\approx50$ \src{L16, Burn-in}. This connects two things that look separate. The time the chain needs to forget its starting point is the same time that makes successive measurements correlated, so burn-in and error bars are controlled by the same timescale. An initial offset $\Delta$ decays like $\Delta\,e^{-t/\tau_\text{exp}}$. To shrink it below the size $s$ of the equilibrium fluctuations takes about $\tau_\text{exp}\ln(\Delta/s)$ sweeps, i.e.\ a few $\tau_\text{exp}$.
+
+This predicts very different burn-ins for the two starts. The \emph{all-up} start has $m=1$, only about $0.09$ above $m_0(2)$. That is the ``initial state near equilibrium'' of lecture, so its transient should be short. Lab 11's $T=2$ trace from the same start settles within a few tens of sweeps \src{Lab 11, Follow the magnetization}. The \emph{random} start has $m\approx0$, which looks nothing like a typical $T=2$ configuration. The lattice must grow aligned regions until one sign wins across the whole system, and chance decides which sign that is, so I expect a much longer burn-in that can end at either $+m$ or $-m$. \ext{a random start can also be trapped for a long time in a ``stripe'' configuration, two straight domain walls wrapping around the periodic lattice with $m\approx0$; this is not covered in the course, and if the trace stalls near $m=0$ I will look at the lattice.} I will choose each burn-in as the sweep after which the trace stays within the band of fluctuations seen later in the run. As a cross-check, I will compare the two starts after their burn-ins: both chains sample the same distribution, so their $|m|$ values must agree \src{Lab 14, slide 27: ``discard more warm-up and compare starts''}.
+
+\paragraph{How many steps: correlated samples and the error of the mean.}
+``A good estimate of the magnetization'' needs an error bar, and lecture shows that the familiar $s/\sqrt N$ is wrong for a Markov chain. For the estimator $\bar f=\frac1N\sum_{i=1}^Nf_i$ of a measured quantity $f$ (here $|m|$),
+\begin{equation}
+\sigma^2_{\bar f}=\frac1{N^2}\sum_{i=1}^N\sum_{j=1}^N\big\langle(f_i-\langle f\rangle)(f_j-\langle f\rangle)\big\rangle .
+\end{equation}
+After burn-in the chain is stationary, so each term depends only on the lag $t=j-i$ and equals the autocovariance $c_f(t)$. Grouping the $N-|t|$ pairs at each lag gives
+\begin{equation}
+\sigma^2_{\bar f}=\frac{c_f(0)}{N}\sum_{t=-(N-1)}^{N-1}\left(1-\frac{|t|}{N}\right)\rho_f(t)\;\approx\;\frac{\tau_f\,\mathrm{Var}[f]}{N},\qquad
+\tau_f=\sum_{t=-\infty}^{\infty}\rho_f(t)=1+2\sum_{t\ge1}\rho_f(t),
+\end{equation}
+where $\rho_f(t)=c_f(t)/c_f(0)$ and the approximation holds for $N\gg\tau_f$ \src{L16, MCMC error; Integrated autocorrelation time}. The interpretation is the key result here: a chain of $N$ correlated sweeps carries the information of only $N/\tau_f$ independent samples \src{Lab 12, The effective number of measurements}. The naive error therefore comes out too small by a factor $\sqrt{\tau_f}$. Lab 12 measured this factor to be about 7 for the Ising magnetization at $T=2.7$ \src{Lab 12, Block the magnetization}.
+
+Two practical estimates of $\tau_f$ come from lecture. The first sums the estimated autocorrelation
+\begin{equation}
+\hat\rho_f(t)=\frac{\hat c_f(t)}{\hat c_f(0)},\qquad \hat c_f(t)=\frac1N\sum_{i=1}^{N-t}(f_i-\bar f)(f_{i+t}-\bar f)\qquad\src{L16, Autocorrelation function}.
+\end{equation}
+Summing it all the way to $N$ gives exactly zero, because at large lags the estimate is mostly noise. The sum must therefore be cut off at the smallest window $M$ with $M\ge5\,\hat\tau_f(M)$, where $\hat\tau_f(M)=1+2\sum_{t=1}^M\hat\rho_f(t)$ \src{L16, Integrated autocorrelation time}. Short chains underestimate $\tau_f$, so the estimate can only be trusted once $N\gtrsim50\,\hat\tau_f$ \src{L16, Estimating $\tau_f$ in practice}. The second method, blocking, avoids $\rho(t)$ altogether. I split the chain into $N_B=N/B$ blocks of $B$ sweeps, average each block to get $F_b$, and treat the block means as independent:
+\begin{equation}
+\sigma^2_{\bar f}(B)=\frac{1}{N_B(N_B-1)}\sum_{b=1}^{N_B}\big(F_b-\bar f\big)^2\qquad\src{L16, Blocking}.
+\end{equation}
+At $B=1$ this is the naive error. As $B$ doubles, the error grows and then levels off once $B\gg\tau_f$. The level part, the plateau, is the error bar, and on it $\big(\sigma_{\bar f}(B)/\sigma_{\bar f}(1)\big)^2\approx\tau_f$, so blocking also gives a second, independent estimate of $\tau_f$. If there is no plateau, the chain is too short. Lab 12's curves add one practical lesson: the last one or two points drop again when too few blocks remain, so the plateau must be read before them \src{Lab 12, The blocking curve; Block the magnetization}.
+
+The course uses two conventions for this quantity. Lectures 16 and 19 define $\tau_\text{int}=1+2\sum_{t\ge1}\rho(t)$ \src{L16; L19, Autocorrelation function}. Lab 12 calls the same sum $g$ and defines $\tau_\text{int}=g/2$ \src{Lab 12, The effective number of measurements}. I use the lecture definition, because it is the one for which $\sigma^2_{\bar f}=\tau_\text{int}\mathrm{Var}[f]/N$ and $(\text{blocked}/\text{naive})^2=\tau_\text{int}$ hold without extra factors, and I state it wherever I report a value.
+
+This answers the question of how many steps to run. The total must be at least $50\,\tau_\text{int}$, so that $\tau_\text{int}$ itself is reliable, and long enough that the blocking curve shows a plateau. Beyond that, the run should make the error bar on $\langle|m|\rangle$ small compared with the differences I want to resolve, such as the gap between my result and $m_0(2)$. I will read $\tau_\text{int}$ from the $T=2$ chains and then choose the length.
+
+\paragraph{Computational steps.}
+\begin{enumerate}
+\item Set $T=2$ and precompute the acceptance table $w(\Delta E)=e^{-\Delta E/T}$ for $\Delta E=4,8$.
+\item Initialize a $20\times20$ integer lattice, all $+1$ (run $k=0$) or $\pm1$ with probability $\tfrac12$ each (run $k=1$), with the generator seeded by $\code{SEED}+k$.
+\item One sweep is 400 repetitions of: choose a site $(i,j)$ uniformly; compute $h=\sigma_{i\pm1,j}+\sigma_{i,j\pm1}$ with periodic indices; set $\Delta E=2\sigma_{ij}h$; flip if $\Delta E\le0$ or a uniform random number is below $w(\Delta E)$; otherwise leave the lattice unchanged. Count accepted flips.
+\item After every sweep, record $m$. Store the history $m_0,m_1,\dots$, with $m_0$ the starting value.
+\item Plot $m$ against sweeps for both starts, with $\pm m_0(2)$ as reference lines, and choose each burn-in.
+\item On the post-burn-in $|m|$: compute $\hat\rho(t)$, $\tau_\text{int}$ (window $M\ge5\tau$), the naive error, and the blocking curve, then choose the total number of sweeps.
+\end{enumerate}
+The inner loop is compiled with Numba's \code{@njit}, as in Lab 11 \src{Lab 11, Compile before the larger runs}.
+
+\paragraph{Validation before trusting the sampler.}
+Following the Lab 10 checklist \src{Lab 10, An auditing checklist}, the sampler must pass tests that would expose the typical mistakes before it produces any reported number:
+\begin{itemize}
+\item \emph{Edges and invariants:} the local $\Delta E$ must equal $E(\text{after})-E(\text{before})$ computed from the full Eq.~(1), at all 400 sites including the edges. The full energy reproduces lecture's example configuration, $E=-152J$ \src{L14, Energy; Lab 11, Add the bond energies}.
+\item \emph{Known answer:} a $3\times3$ lattice has only $2^9=512$ configurations, so $\langle|m|\rangle$ can be computed exactly by summing the Boltzmann weights. The sampler must agree with it at several temperatures \src{Lab 10, Part 3}. A missing factor 2 in $\Delta E$ makes the chain sample $2T$, and rejected flips that are not undone make it sample $T=\infty$. Both show up immediately here.
+\item \emph{Limits and bookkeeping:} as $T\to0$ an all-up start must stay ordered with almost nothing accepted; as $T\to\infty$ every flip must be accepted. There must be exactly one $m$ per sweep.
+\end{itemize}
+
+\subsubsection*{Full code}
+\begin{codebox}
+This section will contain the complete, commented code for Problem 1A from \code{Assignment 3 Homework.ipynb}:
+\begin{itemize}
+\item the setup cell (imports, seeding with \code{rng\_for(k)}, and the shared error-analysis tools \code{autocorrelation}, \code{tau\_int}, \code{naive\_error}, \code{blocking\_curve}) and its validation on Lab 12's AR(1) toy model;
+\item \code{ising\_energy}, \code{flip\_energy}, \code{ising\_sweeps}, \code{initial\_spins}, \code{yang\_m0} and the Ising validation tests;
+\item the two $T=2$ runs, the trace plot, and the burn-in and error analysis.
+\end{itemize}
+\end{codebox}
+
+% ---------------------------------------------------------------------
+\subsection{Problem 1B}
+
+\subsubsection*{Problem statement}
+\begin{statement}
+\textbf{Problem B [20 points]:} Re-run the MCMC simulation for the 2D Ising model at temperatures $T=1$ to $4$ in steps of $0.2$. Describe your strategy for determining the initial configuration, burn-in steps, number of steps per chain, number of chains, and thinning (if any).
+
+Plot the magnetization per spin $m$ and its standard deviation (as an error bar or band) as a function of temperature. Compare to the theoretical prediction for the critical temperature $T_c=\frac{2}{\ln(1+\sqrt2)}\approx2.269$ in units where $J=k_B=1$. Do you observe a sharp phase transition at the critical temperature? If not, what could be going wrong?
+\end{statement}
+
+\subsubsection*{Theoretical analysis}
+
+\paragraph{What an infinite lattice would show.}
+Onsager's solution puts the transition at $k_BT_c/J=2/\ln(1+\sqrt2)\approx2.269$ \src{L14, Ising model phase transition; L17, comparison to theory}. Below it, Yang's formula \eqref{eq:yang} gives the spontaneous magnetization. Evaluating it on the assignment's grid gives the reference curve for the plot:
+\begin{center}
+\begin{tabular}{lccccccc}
+\toprule
+$T$ & 1.0 & 1.2 & 1.4 & 1.6 & 1.8 & 2.0 & 2.2 \\
+\midrule
+$m_0(T)$ & 0.9993 & 0.9970 & 0.9914 & 0.9796 & 0.9569 & 0.9113 & 0.7848 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Above $T_c$, $m_0=0$. Near $T_c$ the magnetization vanishes as $m\sim(T_c-T)^{1/8}$ \src{L17, Critical exponents}. With an exponent this small the curve is nearly vertical at $T_c$: it still holds $0.78$ at $T=2.2$, only $0.07$ below $T_c$. This is the ``sharp transition'' the question asks about, and it is also why simulation is worth doing here. Mean-field theory predicts $k_BT_c/J=4$, $76\%$ too high, and the wrong exponent $1/2$ \src{L17, MCMC vs.\ mean-field theory}.
+
+\paragraph{What a $20\times20$ lattice can show instead.}
+The finite lattice changes this picture in three ways, each of which follows from material in the course.
+
+First, symmetry makes $\langle m\rangle=0$ at every temperature on a finite lattice (Section~\ref{sec:1a}), so I average $|m|$. The assignment allows ``$\langle m\rangle$ or $\langle|m|\rangle$''.
+
+Second, $\langle|m|\rangle$ cannot vanish above $T_c$. Writing $\langle m^2\rangle=\frac{1}{|\Lambda|^2}\sum_{i,j}\langle\sigma_i\sigma_j\rangle$ and using translation invariance gives $\langle m^2\rangle=\frac1{|\Lambda|}\sum_j\langle\sigma_0\sigma_j\rangle$. The spin correlations extend over the correlation length $\xi$ \src{L17, Critical exponents}, so the sum covers roughly $\xi^2$ sites. Hence $\langle m^2\rangle\sim\xi^2/L^2$ and
+\begin{equation}
+\langle|m|\rangle\sim\sqrt{\langle m^2\rangle}\sim\frac{\xi}{L}.
+\end{equation}
+This is the same fluctuation that the per-spin susceptibility $\chi/N=N(\langle m^2\rangle-\langle|m|\rangle^2)/(k_BT)$ measures \src{L17, Ising model: susceptibility}. Far above $T_c$, $\xi$ is about one lattice spacing and $\langle|m|\rangle$ is a few percent. Approaching $T_c$, $\xi\sim|T-T_c|^{-1}$ grows \src{L17, Critical exponents} until it reaches the lattice size, and at that point the lattice can no longer tell the ordered phase from the disordered one. The transition is therefore smeared over the temperature range where $\xi\gtrsim L$. Lab 11 states the same thing: ``Our finite lattice shows a rounded version of this change'' \src{Lab 11, Raise the temperature}. The sharpness returns only as $L\to\infty$; the susceptibility peak, for instance, grows like $L^{7/4}$ \src{L17, Results: magnetization and susceptibility}.
+
+Third, the dynamics slow down near $T_c$. Large aligned patches rearrange slowly one flip at a time, and the autocorrelation time peaks at $T_c$, growing as $L^z$ with $z\approx2.17$ for Metropolis \src{L17, Practical considerations for Ising; Critical slowing down}. Lab 12 shows the onset of this effect: the autocorrelation of $m$ dies out within a few dozen sweeps at $T=3$ but lasts hundreds of sweeps at $T=2.5$ \src{Lab 12, Back to the Ising run}. Acceptance changes with temperature as well. Lab 11 measured $0.013$, $0.208$ and $0.542$ at $T=1.5$, $2.269$ and $3.5$ \src{Lab 11, Compare three temperatures}, which matches the trend in $e^{-4/T}$ and $e^{-8/T}$. The consequence for planning is that one run length cannot fit all 16 temperatures. The chains must be sized by the slowest temperatures, which are the ones near $T_c$.
+
+\paragraph{Strategy.}
+The problem asks for five choices. Each one follows from the analysis above.
+\begin{itemize}
+\item \textbf{Initial configuration: all spins up at every temperature.} Below $T_c$ this is the ``initial state near equilibrium'' of \src{L14, Burn-in}. Above $T_c$ the order of an all-up start is destroyed within about ten sweeps; Lab 11's $T=3.5$ trace drops to $m\approx0$ almost immediately \src{Lab 11, The histories matter too}. Using one start at every temperature also keeps the runs comparable. As a check above $T_c$, I can compare against random starts \src{Lab 14, slide 27}.
+\item \textbf{Burn-in: a multiple of the measured $\tau_\text{int}(T)$, and never less than the 1A value.} The transient decays as $e^{-t/\tau_\text{exp}}$ with $\tau_\text{int}\approx2\tau_\text{exp}$ \src{L16, Burn-in; L19, Autocorrelation function}. Discarding ten times $\tau_\text{int}$, about $20\,\tau_\text{exp}$, leaves a transient below $e^{-20}$ of its initial size, at a negligible cost compared with the run. Since $\tau_\text{int}(T)$ is not known in advance, I first run short pilot chains to estimate it and then set the production lengths.
+\item \textbf{Sweeps per chain: at least $50\,\tau_\text{int}(T)$, with a visible blocking plateau} \src{L16, Estimating $\tau_f$ in practice; Blocking}. The longest chains are needed near $T_c$.
+\item \textbf{Number of chains: several independent chains per temperature,} seeded $\code{SEED}+100+10\,i_T+c$. Independent chains give an error bar that does not rely on any autocorrelation estimate: the spread of the chain means divided by $\sqrt{n_\text{chains}}$, which is exactly the ``width of the heap of run means'' that defines a standard error \src{Lab 12, What an error bar means; The heap of run means}. Lecture uses 16 chains in the same way to check a blocked error \src{L19, Naive error bars}. Agreement between the two error bars is a test of both, and a chain that disagrees with the others reveals one that is stuck.
+\item \textbf{Thinning: none.} Lecture's advice is to keep every sweep after burn-in and obtain the error from $\tau_\text{int}$ or blocking \src{L18, MCMC considerations}. Thinning throws information away. Its only benefit would be memory, and storing one number per sweep is cheap: $10^6$ sweeps take 8 MB.
+\end{itemize}
+
+\paragraph{What to plot.}
+The problem asks for ``the magnetization per spin $m$ and its standard deviation''. Lab 12 points out that two different quantities hide behind the word: the standard deviation $s$ of $m$, which measures how much $m$ fluctuates within a run, and the standard error of the mean, which measures how far the run average lands from the truth \src{Lab 12, What an error bar means}. I will show both. The band is the standard deviation of $|m|$, which measures thermal fluctuations and should be largest near $T_c$. The error bar is the blocking error of $\langle|m|\rangle$. On top of these I will plot $m_0(T)$ and a vertical line at $T_c$.
+
+\paragraph{Expected answer to ``sharp transition?''.}
+From the three finite-lattice effects above, I expect a rounded rather than sharp drop, spread over the range where $\xi\gtrsim L$, with $\langle|m|\rangle$ of order $\xi/L$, nonzero, above $T_c$. If the curve looks wrong in other ways, the analysis also lists what to suspect. Chains that are too short near $T_c$ give noisy points or too-small error bars, because of critical slowing down. Averaging $m$ instead of $|m|$ would pull the low-temperature points toward zero whenever the chain flips sign. Too little burn-in would bias the points toward the starting value $m=1$.
+
+\paragraph{Computational steps.}
+\begin{enumerate}
+\item For each $T$ in $1.0,1.2,\dots,4.0$, run short pilot chains from all up and estimate $\tau_\text{int}(T)$ of $|m|$.
+\item Set the burn-in and the number of sweeps per chain from $\tau_\text{int}(T)$ as described above.
+\item Run $n_\text{chains}$ production chains per temperature with the 1A sampler. Store $|m|$ after every sweep beyond burn-in, and record the acceptance.
+\item For each $T$: compute $\langle|m|\rangle$, the standard deviation of $|m|$, the blocking error, the spread of the chain means, and $\tau_\text{int}$.
+\item Plot $\langle|m|\rangle$ with the band and the error bars against $T$, together with $m_0(T)$ and $T_c$. Optionally also plot $\tau_\text{int}(T)$ to show critical slowing down.
+\item Write the 16 values of $\langle|m|\rangle$ to the field \code{m} of \code{results.json}.
+\end{enumerate}
+
+\subsubsection*{Full code}
+\begin{codebox}
+This section will contain the temperature scan from \code{Assignment 3 Homework.ipynb}: the pilot runs, the production chains, the analysis at each temperature, and the plot of $\langle|m|\rangle$ against $T$. It reuses the sampler and the error tools of Problem 1A.
+\end{codebox}
+
+% =====================================================================
+\section{Problem 2: Path-integral Monte Carlo at finite temperature}
+
+% ---------------------------------------------------------------------
+\subsection{Problem 2A(i)}
+
+\subsubsection*{Problem statement}
+\begin{statement}
+In Lab 14, you sampled imaginary-time paths at large $\beta$, where only the ground state contributes. Here you will work at moderate $\beta$, where excited states contribute too, and check the result against an exact answer.
+
+Divide the imaginary time $\beta$ into $N$ slices of width $\delta\tau=\beta/N$ (with $m=\hbar=1$). A closed path $x=(x_0,x_1,\dots,x_{N-1})$, with $x_N\equiv x_0$, has probability
+\begin{equation*}
+p(x)\propto e^{-S_E(x)},\qquad S_E(x)=\sum_{i=0}^{N-1}\left[\frac{(x_{i+1}-x_i)^2}{2\,\delta\tau}+\delta\tau\,V(x_i)\right],\tag{4}
+\end{equation*}
+and the thermal average of $x^2$ is the average of $\frac1N\sum_ix_i^2$ over sampled paths. For the harmonic oscillator, $V(x)=\frac12x^2$, the exact result as $\delta\tau\to0$ is
+\begin{equation*}
+\langle x^2\rangle_\beta=\frac12\coth\!\left(\frac\beta2\right).\tag{5}
+\end{equation*}
+
+\textbf{Problem A [10 points]:} Take $\beta=1$ and $\delta\tau=0.1$ ($N=10$). Sample paths with Metropolis updates of one slice at a time, $x_i\to x_i+u$ with $u$ uniform in $[-h,h]$; one sweep is $N$ attempted updates.
+
+\textbf{(i)} Run at least 50,000 sweeps. Choose $h$ so that 40--60\% of updates are accepted, and justify your burn-in. Plot the time series of $\frac1N\sum_ix_i^2$ and its autocorrelation function, and estimate the integrated autocorrelation time $\tau_\text{int}$ (in sweeps). Report $\langle x^2\rangle_\beta$ with an error bar from blocking (Lab 12), and compare it with the naive error bar that treats every sweep as independent.
+
+\emph{(Problem B, the bonus, was not attempted.)}
+\end{statement}
+
+\subsubsection*{Theoretical analysis}
+
+\paragraph{From a partition function to a sampling problem.}
+Lecture 13 builds the unnormalized density matrix $\tilde\rho(x',x)=\sum_n\phi_n(x')\phi_n^*(x)e^{-\beta E_n}$. Its trace is the partition function, $Z=\int\tilde\rho(x,x)\,dx=\sum_ne^{-\beta E_n}$ \src{L13, Density matrix}. It obeys the same kind of equation as the real-time propagator once $it=\hbar\beta$, so it can be built from the same zig-zag paths, now in imaginary time \src{L13, Relation to path integral; Density matrix solution}. Taking the trace closes every path, $x_N\equiv x_0$. Slicing the imaginary time $\beta\hbar$ into $N$ steps of $\eta=\delta\tau$ turns each path into a point $(x_0,\dots,x_{N-1})$ in $N$-dimensional space, with probability density $p\propto e^{-S_E/\hbar}$ \src{L13, Partition function; Probability; L18, Imaginary-time path}. That is exactly Eq.~(4). One small difference: Lecture 13 evaluates $V$ at the midpoint of each link, while Eq.~(4) and Lab 14 evaluate it at the left end, $\delta\tau V(x_i)$ \src{Lab 14, slide 9}. Both converge to the same continuum limit, and I use Eq.~(4) exactly as written.
+
+Lecture also says how to integrate over this space. Hit-and-miss sampling fails because of the curse of dimensionality \src{L13, Monte Carlo}, so the tool is the same Markov chain Monte Carlo as in Problem 1. Lecture spells out the correspondence \src{L18, Recap: MCMC for Ising vs.\ path integral}:
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Ising (Problem 1) & Path integral (Problem 2) \\
+\midrule
+lattice site $i$, spin $\sigma_i$ & time slice $i$, position $x_i$ \\
+coupling $J$ & spring $m/\delta\tau$ \\
+$E/k_BT$ & $S_E/\hbar$ \\
+periodic lattice & trace (closed ring of $N$ slices) \\
+flip one spin, $\Delta E$ from 4 bonds & move one slice, $\Delta S_E$ from 2 links \\
+\bottomrule
+\end{tabular}
+\end{center}
+Everything from Problem 1 therefore carries over: detailed balance, Metropolis acceptance, sweeps, burn-in, $\tau_\text{int}$ and blocking. The only new ingredients are the action change and the exact answer to compare with.
+
+\paragraph{The single-slice move.}
+The proposal $x_i\to x_i'=x_i+u$ with $u$ uniform on $[-h,h]$ is symmetric: $u$ and $-u$ are equally likely, so the move and its reverse are proposed with the same probability. The Metropolis acceptance is therefore $\min(1,e^{-\Delta S_E})$ with no Hastings factor \src{L14, The Hastings correction; L18, MCMC steps}. Moving one slice changes only the two links that touch it and its own potential term. With neighbors $a=x_{i-1}$ and $b=x_{i+1}$, the kinetic part changes by
+\begin{equation}
+\frac{(x_i'-a)^2-(x_i-a)^2+(b-x_i')^2-(b-x_i)^2}{2\,\delta\tau}
+=\frac{(x_i'-x_i)\big[(x_i'+x_i-2a)+(x_i'+x_i-2b)\big]}{2\,\delta\tau},
+\end{equation}
+using $p^2-q^2=(p-q)(p+q)$ on each pair. Adding the potential term gives
+\begin{equation}
+\Delta S_E=\frac{(x_i'-x_i)\,(x_i'+x_i-x_{i-1}-x_{i+1})}{\delta\tau}+\delta\tau\big[V(x_i')-V(x_i)\big],\label{eq:dS}
+\end{equation}
+with indices wrapping around the ring, $x_{-1}\equiv x_{N-1}$ and $x_N\equiv x_0$. This is the formula on \src{L18, MCMC steps; L19, Recap: MCMC steps}. Lab 14 recommends checking it against the change in the full action, including across the closing link \src{Lab 14, slide 14}. One sweep is $N=10$ attempted updates. Lecture 18 visits the slices in random order and Lab 14 in order; both are ``$N$ attempted updates'', and each single update satisfies detailed balance, so either order leaves $p$ stationary. I follow Lab 14 and visit each slice once, in order \src{Lab 14, slide 17}. A rejected update keeps the current path and still counts \src{Lab 14, slide 15}.
+
+\paragraph{The estimator.}
+After each sweep I record $f=\frac1N\sum_{i=0}^{N-1}x_i^2$, and $\langle x^2\rangle_\beta$ is the mean of $f$ over the sweeps kept after burn-in \src{L18, Beyond the ground state: finite $\beta$}. Averaging over all $N$ slices, rather than using one, costs nothing and is exact in expectation. The ring has no preferred starting slice, since Eq.~(4) is unchanged under $x_i\to x_{i+1}$, so every slice has the same distribution.
+
+\paragraph{The exact answer, from the partition function.}
+The comparison value (5) can be derived from course formulas. The oscillator's levels are $E_n=n+\tfrac12$ \ext{the harmonic-oscillator spectrum, from undergraduate quantum mechanics}, so the partition function and, from $U=-\partial\ln Z/\partial\beta$ \src{L13, Partition function relations}, the thermal energy are
+\begin{equation}
+Z=\sum_{n=0}^{\infty}e^{-\beta(n+\frac12)}=\frac{e^{-\beta/2}}{1-e^{-\beta}}=\frac{1}{2\sinh(\beta/2)},\qquad
+U=-\frac{\partial\ln Z}{\partial\beta}=\frac12\coth\!\left(\frac\beta2\right),
+\end{equation}
+The quantum virial theorem from lecture connects the energy to $x^2$: in each eigenstate $E=\langle V\rangle+\langle K\rangle=\langle V\rangle+\frac12\langle xV'(x)\rangle$, which for $V=\frac12x^2$ gives $E_n=\langle x^2\rangle_n$ \src{L18, Ground state energy calculation, with $\tilde\lambda=0$}. The thermal state weights each eigenstate by $p_n=e^{-\beta E_n}/Z$ \src{L18, Beyond the ground state: finite $\beta$}, so
+\begin{equation}
+\langle x^2\rangle_\beta=\sum_np_n\langle x^2\rangle_n=\sum_np_nE_n=U=\frac12\coth\!\left(\frac\beta2\right).
+\end{equation}
+So the target is simply the thermal energy. Its limits are those quoted in lecture \src{L18, Beyond the ground state: finite $\beta$}: $\frac12$, the ground state, for $\beta\gg1$, and $1/\beta$, equipartition, for $\beta\ll1$. At $\beta=1$ the first excited state still carries $p_1/p_0=e^{-1}\approx0.37$ of the ground-state weight, which is why the answer is $1.08198$ rather than $0.5$ \src{Lab 14, slide 8}.
+
+\paragraph{The exact answer at $\delta\tau=0.1$.}
+Equation (5) holds only as $\delta\tau\to0$, but the discretized problem can also be solved exactly, because $S_E$ is quadratic. With $V=\frac12x^2$, Eq.~(4) is $S_E=\frac12\mathbf x^{\mathsf T}A\mathbf x$, where $A$ has $2/\delta\tau+\delta\tau$ on the diagonal and $-1/\delta\tau$ between ring neighbors (including the closing link). Shifting the path by one slice leaves $A$ unchanged, so its eigenvectors are the plane waves $x_i\propto e^{2\pi\mathrm iki/N}$, with eigenvalues
+\begin{equation}
+\lambda_k=\delta\tau+\frac{2}{\delta\tau}\Big(1-\cos\frac{2\pi k}{N}\Big)=\delta\tau+\frac4{\delta\tau}\sin^2\frac{\pi k}{N},\qquad k=0,\dots,N-1 .
+\end{equation}
+For a Gaussian density $\propto e^{-\frac12\mathbf x^{\mathsf T}A\mathbf x}$ the covariance is $A^{-1}$ \ext{a standard property of multivariate Gaussian integrals}. Because all slices are equivalent, $\langle x_i^2\rangle=(A^{-1})_{ii}=\frac1N\mathrm{Tr}A^{-1}$, so
+\begin{equation}
+\langle x^2\rangle_{\delta\tau}=\frac1N\sum_{k=0}^{N-1}\frac{1}{\delta\tau+\frac{4}{\delta\tau}\sin^2(\pi k/N)}\qquad\src{Lab 14, slide 22}.
+\end{equation}
+At $\beta=1$, $N=10$ this gives $1.08101$, which is $0.089\%$ below Eq.~(5). That is the ``about $0.09\%$'' quoted in the assignment. Lecture's closed form for the same quantity, from Creutz and Freedman \src{L19, Equilibration and burn in}, gives the identical number. This second reference is what makes the comparison meaningful. Agreement with $1.08101$ tests the \emph{sampler}, while the gap between $1.08101$ and $1.08198$ is the time-step error, which shrinks as $\delta\tau^2$ \src{L19, Two sources of error}. A result that disagrees with the discrete value has a bug or an underestimated error bar; discretization cannot explain it.
+
+\paragraph{Choosing the hit size $h$.}
+The acceptance depends on $h$ and $\delta\tau$ \src{L19, Acceptance rate vs.\ hit size}, and the scale of $h$ follows from the action. Collecting the terms of $S_E$ that contain $x_i$,
+\begin{equation}
+\frac{(x_i-a)^2+(b-x_i)^2}{2\,\delta\tau}+\frac{\delta\tau}{2}x_i^2
+=\frac{2+\delta\tau^2}{2\,\delta\tau}\,x_i^2-\frac{a+b}{\delta\tau}\,x_i+\text{const},
+\end{equation}
+so, given its neighbors, $x_i$ is Gaussian with variance $\delta\tau/(2+\delta\tau^2)\approx\delta\tau/2$, a width of $0.22$ at $\delta\tau=0.1$. The stiff springs, not the potential, set this width. Proposals much larger than it are almost always rejected; much smaller ones are almost always accepted but barely move the path. The useful scale is therefore $h\propto\sqrt{\delta\tau}$, which is the scaling Lab 14 uses when it refines the grid \src{Lab 14, slide 25}. Creutz and Freedman's choice $h=2\sqrt{\delta\tau}\approx0.63$ gives about $50\%$ acceptance \src{L19, Autocorrelation time vs.\ hit size}, so the assignment's 40--60\% window corresponds to $h$ of order $0.5$--$0.7$. Lecture also shows that $\tau_\text{int}$ is close to its minimum between about $30\%$ and $55\%$ acceptance \src{L19, Autocorrelation time vs.\ hit size}, so anywhere in the window is a good choice. I will scan $h$ in short runs, pick a value inside the window, and report the acceptance of the production run.
+
+\paragraph{Burn-in.}
+I use a cold start, $\mathbf x=0$ \src{L18, MCMC steps; Lab 14, slide 18}. The measured $f$ then starts at $0$ and must climb to about $1.08$, and lecture uses exactly this rise of $\langle x^2\rangle$ to judge equilibration \src{L19, Equilibration and burn in}. How long it takes is set by the slowest motion of the path, which Problem 2A(ii) shows to be the path center. I therefore expect a burn-in of many hundreds of sweeps, far longer than at the coarse grid of Lab 14. I will justify the burn-in by plotting the first several thousand sweeps of $f$, choosing the point after which the trace stays within its later fluctuations, and checking that it is at least several $\tau_\text{int}$, following the same reasoning as in Problem 1A. Since the production run will be long, a generous burn-in costs little.
+
+\paragraph{Error bars, naive and blocked.}
+The error analysis is that of Problem 1A, applied to $f$. The naive error $s/\sqrt N$ treats every sweep as independent. The blocking error is read from the plateau, and the two should satisfy $(\sigma_\text{block}/\sigma_\text{naive})^2\approx\tau_\text{int}$. Lecture gives an example: with $\tau_\text{int}\approx13$ the naive error is too small by $\sqrt{13}\approx3.7$, and independent chains confirm the corrected error \src{L19, Naive error bars}. The analysis of 2A(ii) predicts a $\tau_\text{int}$ of hundreds of sweeps here, so the naive error should be too small by a factor of order ten or more. The run length follows from the same rule as before. The reliability criterion $N\gtrsim50\,\tau_\text{int}$ \src{L16, Estimating $\tau_f$ in practice} means that the minimum of 50,000 sweeps is only just enough. Since a sweep of 10 updates costs almost nothing when compiled, I plan on the order of $10^6$ kept sweeps, which makes the blocking plateau clear and the error bar small. The field \code{n\_sweeps\_single} counts only the kept sweeps.
+
+\paragraph{Computational steps.}
+\begin{enumerate}
+\item Set $\beta=1$, $\delta\tau=0.1$, $N=10$. Compute the exact references $\frac12\coth(\frac12)=1.08198$ and $\langle x^2\rangle_{\delta\tau}=1.08101$.
+\item Scan $h$ with short runs (seeds $\code{SEED}+210+j$) and choose $h$ with acceptance in 40--60\%.
+\item Production run (seed $\code{SEED}+200$): start from $\mathbf x=0$. One sweep visits $i=0,\dots,9$ in order, proposes $x_i'=x_i+u$, computes $\Delta S_E$ from \eqref{eq:dS} with periodic neighbors, and accepts if $\Delta S_E\le0$ or a uniform random number is below $e^{-\Delta S_E}$. Record $f=\frac1N\sum x_i^2$ after every sweep and count accepted updates.
+\item Plot the first part of the trace to choose and justify the burn-in, then discard it.
+\item On the kept sweeps: the time series of $f$; $\hat\rho(t)$ and its plot; $\tau_\text{int}$ with the window $M\ge5\tau$; the naive error; the blocking curve and its plateau. Compare $(\text{blocked}/\text{naive})^2$ with $\tau_\text{int}$.
+\item Report $\langle x^2\rangle_\beta\pm\sigma_\text{block}$ and compare it with both exact references, in units of the error bar. Write \code{h}, \code{acceptance}, \code{n\_sweeps\_single}, \code{x2\_single}, \code{x2\_err\_single}, \code{x2\_err\_naive} and \code{tau\_single} to \code{results.json}.
+\end{enumerate}
+
+\paragraph{Validation before trusting the sampler.}
+As in Problem 1, the Lab 10 checklist sets the tests:
+\begin{itemize}
+\item \emph{Edges and invariants:} $\Delta S_E$ from \eqref{eq:dS} must equal $S_E(\mathbf x')-S_E(\mathbf x)$ computed from the full Eq.~(4), for every slice including $i=0$ and $i=N-1$, where the ring closes \src{Lab 14, slide 14}.
+\item \emph{Known answer:} independent chains must reproduce the discretized exact value $1.08101$ within their error, and the reference functions themselves must return $1.08198$ and $1.08101$ and approach each other as $\delta\tau\to0$.
+\item \emph{Limits and bookkeeping:} the acceptance must approach 1 as $h\to0$ and 0 as $h\to\infty$. There must be exactly one $f$ per sweep, with rejected updates included \src{Lab 10, An auditing checklist}.
+\end{itemize}
+
+\subsubsection*{Full code}
+\begin{codebox}
+This section will contain the complete, commented code for Problem 2A(i) from \code{Assignment 3 Homework.ipynb}: \code{action}, \code{delta\_action}, \code{pimc\_sweeps}, \code{x2\_exact}, \code{x2\_exact\_discrete}, the path-integral validation tests, the scan of $h$, the production run, and the plots and error analysis. It reuses the shared error tools of Problem 1A.
+\end{codebox}
+
+% ---------------------------------------------------------------------
+\subsection{Problem 2A(ii)}
+
+\subsubsection*{Problem statement}
+\begin{statement}
+\textbf{(ii)} Explain why single-slice updates decorrelate slowly. (Hint: how far can one update move the center of the path, $\bar x=\frac1N\sum_ix_i$, when $\delta\tau$ is small?)
+\end{statement}
+
+\subsubsection*{Theoretical analysis}
+
+\paragraph{Following the hint.}
+One update moves one slice by $u$ with $|u|\le h$, so it moves the center $\bar x=\frac1N\sum_ix_i$ by only $u/N$. The previous part showed that $h$ cannot usefully exceed a few times the conditional width $\sqrt{\delta\tau/2}$, because the springs with stiffness $1/\delta\tau$ pin each slice to its neighbors. One update can therefore move the center by at most about
+\begin{equation}
+\frac{h}{N}\sim\frac{\sqrt{\delta\tau}}{N}=\frac{\delta\tau^{3/2}}{\beta},
+\end{equation}
+which is $0.03$ at $\delta\tau=0.1$ and $\beta=1$, and decreases rapidly as $\delta\tau\to0$. To see why this is slow, I compare it with how far the center actually needs to travel.
+
+\paragraph{How far the center has to move.}
+Lab 14's animation points the way: shifting the whole path by a constant leaves every link $x_{i+1}-x_i$, and so the whole kinetic part of $S_E$, unchanged, and only the potential cost changes \src{Lab 14, slide 11}. Writing each slice as $x_i=\bar x+\xi_i$ with $\sum_i\xi_i=0$, the kinetic term depends only on the $\xi_i$, and the potential term separates because the cross term vanishes:
+\begin{equation}
+\delta\tau\sum_i\tfrac12(\bar x+\xi_i)^2=\frac{N\delta\tau}{2}\bar x^2+\bar x\,\delta\tau\sum_i\xi_i+\frac{\delta\tau}2\sum_i\xi_i^2=\frac\beta2\bar x^2+\frac{\delta\tau}{2}\sum_i\xi_i^2 .
+\end{equation}
+The center is therefore Gaussian with variance $1/\beta$ ($=1$ at $\beta=1$), and only the weak potential holds it. In the normal modes of the previous part, the center is the $k=0$ mode with $\lambda_0=\delta\tau$, while the other modes are stiffened by the springs up to $\lambda_\text{max}\approx\delta\tau+4/\delta\tau$. At $\delta\tau=0.1$ this ratio is $\lambda_\text{max}/\lambda_0=1+4/\delta\tau^2=401$. The step size of a local move must be chosen for the stiffest direction, while the slowest direction is $\sqrt{401}\approx20$ times wider. This mismatch is the core of the answer.
+
+\paragraph{How long the trip takes.}
+Accepted moves push the center around randomly, by $\pm u/N$ per update. Per sweep, the $N$ updates add a variance of about $N\,\sigma_u^2/N^2=\sigma_u^2/N$, with $\sigma_u^2\sim\delta\tau/2$ the typical squared accepted move. To diffuse across its own width, variance $1/\beta$, the center therefore needs about
+\begin{equation}
+n_\text{sweeps}\sim\frac{1/\beta}{\sigma_u^2/N}=\frac{1}{\delta\tau\,\sigma_u^2}\sim\frac{2}{\delta\tau^2}
+\end{equation}
+sweeps. That is on the order of $200$ sweeps at $\delta\tau=0.1$, independent of $\beta$, and it grows as $1/\delta\tau^2$ when the grid is refined at fixed $\beta$. The measured quantity inherits this slow mode: from the same decomposition, $f=\frac1N\sum_ix_i^2=\bar x^2+\frac1N\sum_i\xi_i^2$, so $f$ cannot decorrelate faster than $\bar x$ does. I therefore expect $\tau_\text{int}$ of $f$ to be of order hundreds of sweeps, and much larger than the $\tau_\text{int}\approx13$ of lecture's coarser example \src{L19, Naive error bars}. The same trend appears in the course material. In Lab 14 the error bar at fixed number of sweeps grows as $\Delta\tau$ shrinks, because ``the finer chain is more correlated'' \src{Lab 14, slide 26}, and the autocorrelation time in lecture grows steeply as the time step decreases \src{L19, Autocorrelation function}.
+
+\paragraph{Answer.}
+Single-slice updates decorrelate slowly because they are local moves in a problem whose slowest direction is collective. Each slice is tightly bound to its neighbors by springs of stiffness $1/\delta\tau$, which forces the step size down to $h\sim\sqrt{\delta\tau}$. The center of the path, however, is held only by the weak potential, because uniform shifts do not stretch any spring, and it must wander over a range of order $1/\sqrt\beta$. Since one update moves the center by only $h/N\sim\delta\tau^{3/2}/\beta$, the center performs a slow random walk, and decorrelating it takes of order $1/\delta\tau^2$ sweeps, about $10^2$ at $\delta\tau=0.1$. The measured $\frac1N\sum_ix_i^2$ contains $\bar x^2$, so it inherits this slowness. Lecture ends on exactly this problem and asks ``What moves could help?'' \src{L19, Preview: hard sampling in double well}. The natural answer is a move that shifts the center directly; that is the bonus Problem 2B, which I did not attempt.
+
+\subsubsection*{Full code}
+\begin{nocodebox}
+No separate code. This part is answered analytically, and the prediction is compared with the $\tau_\text{int}$ measured in Problem 2A(i).
+\end{nocodebox}
+
+% =====================================================================
+\section*{AI use appendix}
+\addcontentsline{toc}{section}{AI use appendix}
+\begin{itemize}
+\item \textbf{Tool:} Claude Code (Anthropic). Conversation: \url{https://claude.ai/code/session_0139N3DcDBvXoCicEtTrNrj2}
+\item \textbf{Purpose:} \emph{to be completed.}
+\item \textbf{Prompts:} \emph{to be completed.}
+\item \textbf{What it got wrong and how I caught it:} see the audit log below.
+\end{itemize}
+
+\noindent\begin{minipage}{\linewidth}
+\paragraph{Audit log} (Lab 10 format). One row per mistake, mine or the AI's. After each fix all validation tests are rerun, one fix at a time.
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{l*{5}{>{\raggedright\arraybackslash}X}}
+\toprule
+\# & Function / cell & Symptom & Test that exposed it & Fix & Caught without that test? \\
+\midrule
+1 & & & & & \\
+2 & & & & & \\
+3 & & & & & \\
+\bottomrule
+\end{tabularx}
+\end{center}
+\end{minipage}
+
+\end{document}
